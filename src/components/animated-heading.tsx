@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import { animate, stagger } from "motion"
-import { cn } from "@/lib/utils"
+import { cn } from "../lib/utils"
 
 type AnimatedHeadingProps = {
   className?: string
