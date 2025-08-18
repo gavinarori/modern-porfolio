@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import type { CSSProperties } from "react"
 import { animate, inView, stagger } from "motion"
+import { GlowingEffect } from "../components/ui/glowing-effect";
 
 type RevealOnViewProps = {
   as?: keyof JSX.IntrinsicElements
@@ -66,6 +67,13 @@ export default function RevealOnView({ as = "div", className, children, delay = 
 
   return (
     <Tag ref={ref} className={className} style={style}>
+      <GlowingEffect
+          spread={40}
+          glow={true}
+          disabled={false}
+          proximity={64}
+          inactiveZone={0.01}
+        />
       {children}
     </Tag>
   )

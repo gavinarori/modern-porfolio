@@ -43,7 +43,7 @@ export default function Page() {
                 {/* Headline */}
                 <AnimatedHeading
                   className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl"
-                  lines={[DATA.name, "Full‑stack Developer"]}
+                  lines={[DATA.name, "Software Engineer"]}
                 />
 
                 <p className="mt-4 max-w-[42ch] text-lg text-white/70">{DATA.summary}</p>
@@ -51,8 +51,8 @@ export default function Page() {
                 {/* CTAs + Socials */}
                 <div className="mt-6 flex flex-wrap items-center gap-3">
                   <Button asChild size="lg" className="rounded-full">
-                    <Link href={`mailto:${DATA.contact.email}`}>
-                      Contact me
+                    <Link href={`/about`}>
+                      About me
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
