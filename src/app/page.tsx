@@ -9,6 +9,7 @@ import ProjectCard from "../components/project-card"
 import AnimatedHeading from "../components/animated-heading"
 import RevealOnView from "../components/reveal-on-view"
 import { DATA } from "../data/site-data"
+import HighlightText from "../components/highlight-text"
 
 export default function Page() {
   const projects = DATA.projects
@@ -46,7 +47,12 @@ export default function Page() {
                   lines={[DATA.name, "Software Engineer"]}
                 />
 
-                <p className="mt-4 max-w-[42ch] text-lg text-white/70">{DATA.summary}</p>
+                <p className="mt-4 max-w-[42ch] text-lg text-white/70">
+                  <HighlightText
+                    text={DATA.summary}
+                    phrases={["real-world problems", "high-performance applications"]}
+                  />
+                </p>
 
                 {/* CTAs + Socials */}
                 <div className="mt-6 flex flex-wrap items-center gap-3">
