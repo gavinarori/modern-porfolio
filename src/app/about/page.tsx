@@ -7,6 +7,7 @@ import RevealOnView from "../../components/reveal-on-view"
 import AnimatedHeading from "../../components/animated-heading"
 import DotGridShader from "../../components/DotGridShader"
 import { Button } from "../../components/ui/button"
+import HighlightText from "../../components/highlight-text"
 
 export default function AboutPage() {
   return (
@@ -94,7 +95,12 @@ export default function AboutPage() {
             {/* About */}
             <RevealOnView className="rounded-3xl border border-white/10 bg-neutral-900/60 p-6 sm:p-8">
               <h2 className="text-2xl font-semibold">About</h2>
-              <p className="mt-4 text-white/80">{DATA.summary}</p>
+              <p className="mt-4 text-white/80">
+                <HighlightText
+                  text={DATA.summary}
+                  phrases={["real-world problems", "reliable", "high-performance applications"]}
+                />
+              </p>
             </RevealOnView>
 
             {/* Education */}

@@ -8,14 +8,16 @@ export const DATA = {
   location: "Kenya",
   locationLink: "https://www.google.com/maps/place/Kenya",
   description:
-    "I’m a  Full-stack developer from Kenya, dedicated to crafting intuitive and high-performance applications. I thrive on solving real-world problems using modern technologies and enjoy collaborating on innovative projects that have a lasting impact. Continuously learning and adapting to new tools, I focus on building user-centric experiences that make a difference.",
+    "I’m a full-stack developer based in Kenya, building reliable, high-performance applications that solve real-world problems. I genuinely care about creating software that people enjoy using and that delivers long-term value.",
   summary:
-    " I specialize in front-end and back-end technologies, with a strong emphasis on frameworks like Next.js, React, and SpringBoot. Currently, I am expanding my expertise in cloud technologies and project management, while working on hands-on projects that push the boundaries of my skills.",
+    "I’m a full-stack developer based in Kenya, building reliable, high-performance applications that solve real-world problems. I genuinely care about creating software that people enjoy using and that delivers long-term value.",
   avatarUrl: "https://avatars.githubusercontent.com/u/99688077?v=4",
   skills: [
     "JavaScript",
     "TypeScript",
     "React",
+    "Redux",
+    "TanStack Query",
     "Next.js",
     "SpringBoot",
     "TailwindCSS",
