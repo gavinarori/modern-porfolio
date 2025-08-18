@@ -362,8 +362,8 @@ export const DATA = {
       location: "Virtual - Africa Focus",
       description:
         "Participated in the Hello Tractor E-commerce Hackathon aimed at building a secondary marketplace platform for buying and selling second-hand tractors, agri-implements, and connecting with trained tractor operators. Implemented key features including user registration, tractor listings, advanced filters, messaging system, seller dashboard, and admin panel.",
-      image: "https://hellotractor.com/wp-content/uploads/2021/07/logo_medium.png",
-      mlh: "https://github.com/Hello-Tractor-Community/ht-marketplace-hackathon-gavin-arori",
+      image: "https://media.licdn.com/dms/image/v2/D4D22AQFeQswEKCPBUA/feedshare-shrink_1280/B4DZQY6kXCHUAk-/0/1735584797498?e=1758153600&v=beta&t=dCdhva39HRr0sH9BDvtnN65YdEQ1RFUXrr2LM9lX608",
+      mlh: "/1735584797498.jpeg",
       links: [],
     },
   ],
@@ -373,35 +373,35 @@ export const DATA = {
       provider: "Coursera",
       logoUrl:
         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTcLXiAUFRc5hMtcUuLk_bdIYZO3q_shTanAA&s",
-      link: "https://coursera.org/share/24d832b3f40814d2c2fc90c5ed820515",
+      link: "/CERTIFICATE_LANDING_PAGE~87SER8RH6JGR.jpeg",
     },
     {
       title: "React Basics",
       provider: "Coursera",
       logoUrl:
         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTcLXiAUFRc5hMtcUuLk_bdIYZO3q_shTanAA&s",
-      link: "https://coursera.org/share/13bace62b1054e22d6f46828a215c2d9",
+      link: "/CERTIFICATE_LANDING_PAGE~366U537L6PQS.jpeg",
     },
     {
       title: "Introduction to Front-End Developer",
       provider: "Coursera",
       logoUrl:
         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTcLXiAUFRc5hMtcUuLk_bdIYZO3q_shTanAA&s",
-      link: "https://coursera.org/verify/N57Q84SHVJDW",
+      link: "/CERTIFICATE_LANDING_PAGE~N57Q84SHVJDW.jpeg",
     },
     ,
     {
       title: "learn javascript and jquery from scratch",
       provider: "EDUONIX",
       logoUrl: "https://cdn.eduonix.com/assets/images/logo_sprite.png",
-      link: "https://www.eduonix.com/certificate/7c683f09e7",
+      link: "/eduonix.jpeg",
     },
     ,
     {
       title: "Introduction to CSS",
       provider: "Simplilearn",
       logoUrl: "https://www.simplilearn.com/ice9/new_logo.svgz",
-      link: "https://simpli.app.link/nX4zreh9xrb",
+      link: "/thumb_3592905_1657458314.png",
     },
   ],
 } as const
