@@ -1,103 +1,159 @@
-import Image from "next/image";
+import Link from "next/link"
+import { ArrowRight } from "lucide-react"
 
-export default function Home() {
+import { Button } from "../components/ui/button"
+import DotGridShader from "../components/DotGridShader"
+
+import ProjectCard from "../components/project-card"
+import AnimatedHeading from "../components/animated-heading"
+import RevealOnView from "../components/reveal-on-view"
+
+export default function Page() {
+  const projects = [
+    {
+      title: "Walletly — Multi‑account mobile banking",
+      subtitle: "End‑to‑end product design",
+      imageSrc: "/images/project-1.webp",
+      tags: ["Mobile", "Fintech", "UI/UX"],
+      href: "#project-1",
+      priority: true,
+      gradientFrom: "#0f172a",
+      gradientTo: "#6d28d9",
+    },
+    {
+      title: "Nimbus — SaaS analytics",
+      subtitle: "Design system & web app",
+      imageSrc: "/images/project-2.webp",
+      tags: ["SaaS", "Design System", "Web"],
+      href: "#project-2",
+      priority: false,
+      gradientFrom: "#111827",
+      gradientTo: "#2563eb",
+    },
+    {
+      title: "Arcade — E‑commerce for streetwear",
+      subtitle: "Mobile‑first storefront",
+      imageSrc: "/images/project-3.webp",
+      tags: ["Commerce", "Mobile", "Brand"],
+      href: "#project-3",
+      priority: false,
+      gradientFrom: "#0b132b",
+      gradientTo: "#5bc0be",
+    },
+    {
+      title: "CareConnect — Patient portal",
+      subtitle: "Accessibility‑first UI",
+      imageSrc: "/images/project-4.webp",
+      tags: ["A11y", "Web App", "Health"],
+      href: "#project-4",
+      priority: false,
+      gradientFrom: "#0f172a",
+      gradientTo: "#10b981",
+    },
+    {
+      title: "Aurora — Creative portfolio",
+      subtitle: "Motion & interaction design",
+      imageSrc: "/images/project-5.webp",
+      tags: ["Portfolio", "Animation", "UI/UX"],
+      href: "#project-5",
+      priority: false,
+      gradientFrom: "#1f2937",
+      gradientTo: "#8b5cf6",
+    },
+    {
+      title: "Hydra — AI assistant",
+      subtitle: "Conversational product UX",
+      imageSrc: "/images/project-6.webp",
+      tags: ["AI", "SaaS", "Product"],
+      href: "#project-6",
+      priority: false,
+      gradientFrom: "#0b132b",
+      gradientTo: "#10b981",
+    },
+  ]
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="bg-neutral-950 text-white">
+      {/* HERO: full-viewport row. Left is sticky; right scrolls internally. */}
+      <section className="px-4 pt-4 pb-16 lg:pb-4">
+        <div className="grid h-full grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
+          {/* LEFT: sticky and full height, no cut off */}
+          <aside className="lg:sticky lg:top-4 lg:h-[calc(100svh-2rem)]">
+            <RevealOnView
+              as="div"
+              intensity="hero"
+              className="relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border border-white/10 bg-neutral-900/60 p-6 sm:p-8"
+              staggerChildren
+            >
+              {/* Texture background */}
+              <div className="pointer-events-none absolute inset-0 opacity-5 mix-blend-soft-light">
+                <DotGridShader />
+              </div>
+              <div>
+                {/* Wordmark */}
+                <div className="mb-8 flex items-center gap-2">
+                  <div className="text-2xl font-extrabold tracking-tight">brandon</div>
+                  <div className="h-2 w-2 rounded-full bg-white/60" aria-hidden="true" />
+                </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+                {/* Headline with intro blur effect */}
+                <AnimatedHeading
+                  className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl"
+                  lines={["I design products", "that people love"]}
+                />
+
+                <p className="mt-4 max-w-[42ch] text-lg text-white/70">
+                  Brandon is a product designer based in New York. He helps early‑stage startups ship beautiful, usable
+                  software fast.
+                </p>
+
+                {/* CTAs */}
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Button asChild size="lg" className="rounded-full">
+                    <Link href="mailto:brandon@portfolio.dev">
+                      Hire me
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
+
+                {/* Trusted by */}
+                <div className="mt-10">
+                  <p className="mb-3 text-xs font-semibold tracking-widest text-white/50">COMPANIES I&apos;VE WORKED WITH</p>
+                  <ul className="grid grid-cols-2 gap-x-6 gap-y-3 text-2xl font-black text-white/25 sm:grid-cols-3">
+                    <li>Space Y</li>
+                    <li>Melta</li>
+                    <li>ClosedAI</li>
+                    <li>Booble</li>
+                    <li>Lentflix</li>
+                    <li>Xwitter</li>
+                  </ul>
+                </div>
+              </div>
+            </RevealOnView>
+          </aside>
+
+          {/* RIGHT: simplified, no internal card or horizontal carousel */}
+          <div className="space-y-4">
+            {projects.map((p, idx) => (
+              <ProjectCard
+                key={p.title}
+                title={p.title}
+                subtitle={p.subtitle}
+                imageSrc={p.imageSrc}
+                tags={p.tags}
+                href={p.href}
+                priority={p.priority}
+                gradientFrom={p.gradientFrom}
+                gradientTo={p.gradientTo}
+                imageContainerClassName="lg:h-full"
+                containerClassName="lg:h-[calc(100svh-2rem)]"
+                revealDelay={idx * 0.06}
+              />
+            ))}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+      </section>
+    </main>
+  )
 }
