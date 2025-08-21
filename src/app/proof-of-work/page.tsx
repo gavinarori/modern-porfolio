@@ -160,7 +160,7 @@ export default function ProofOfWorkPage() {
                     {/* Project Media */}
                     <div className="lg:w-1/2">
                       <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10">
-                        {p.video ? (
+                        
                           <video
                             src={p.video}
                             className="h-full w-full object-cover"
@@ -171,15 +171,7 @@ export default function ProofOfWorkPage() {
                             preload="none"
                             poster={p.image || "/placeholder.svg"}
                           />
-                        ) : (
-                          <Image
-                            src={p.image || "/placeholder.svg"}
-                            alt={p.title}
-                            fill
-                            sizes="(min-width: 1024px) 50vw, 100vw"
-                            className="object-cover"
-                          />
-                        )}
+                        
                       </div>
                     </div>
                     
@@ -291,18 +283,6 @@ export default function ProofOfWorkPage() {
               </ul>
             </Section>
 
-            {/* Screenshots / Videos */}
-            <Section
-              icon={<Video className="h-4 w-4" />}
-              title="Screenshots / Videos"
-              subtitle="UI demos and feature walkthroughs"
-            >
-              <CardRow>
-                {projects.slice(0, 4).map((p) => (
-                  <SimpleCard key={`media-${p.title}`} title={p.title} description={p.description} href={p.href} cta="View" />
-                ))}
-              </CardRow>
-            </Section>
 
             {/* Client testimonials */}
             <Section
