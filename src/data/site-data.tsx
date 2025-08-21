@@ -96,6 +96,18 @@ export const DATA = {
         "Implemented performance optimization techniques, improving page load times by 20%.",
         "Collaborated with backend developers to integrate RESTful APIs, enhancing application functionality.",
       ],
+      keyResponsibilities: [
+        "Frontend development using React and modern JavaScript",
+        "Performance optimization and code quality improvements",
+        "API integration and backend collaboration",
+        "User experience enhancement and responsive design",
+      ],
+      reference: {
+        name: "John Doe",
+        title: "Lead Developer",
+        email: "john.doe@gigitise.com",
+        phone: "+1 (555) 123-4567",
+      },
     },
     {
       company: "Adamur",
@@ -112,6 +124,18 @@ export const DATA = {
         "Integrated and managed databases efficiently with Prisma.",
         "Implemented server-side logic and APIs using Express for seamless functionality.",
       ],
+      keyResponsibilities: [
+        "Full-stack development with React, Node.js, and PostgreSQL",
+        "Database design and management with Prisma ORM",
+        "API development and server-side logic implementation",
+        "Responsive UI design and user experience optimization",
+      ],
+      reference: {
+        name: "Sarah Johnson",
+        title: "Technical Lead",
+        email: "sarah.johnson@adamur.io",
+        phone: "+1 (555) 234-5678",
+      },
     },
     {
       company: "AdZetu",
@@ -128,9 +152,21 @@ export const DATA = {
         "Integrated and managed databases efficiently with Prisma.",
         "Implemented server-side logic and APIs using Express for seamless functionality.",
       ],
+      keyResponsibilities: [
+        "React-based frontend development and optimization",
+        "Database integration and management",
+        "API development and backend integration",
+        "Performance optimization and code quality",
+      ],
+      reference: {
+        name: "Michael Chen",
+        title: "Senior Developer",
+        email: "michael.chen@adzetu.com",
+        phone: "+1 (555) 345-6789",
+      },
     },
     {
-      company: "Patient Xpress ",
+      company: "Patient Xpress",
       badges: [],
       href: "https://www.adamur.io",
       location: "Remote",
@@ -144,6 +180,18 @@ export const DATA = {
         "Integrated and managed databases efficiently with Prisma.",
         "Implemented server-side logic and APIs using Express for seamless functionality.",
       ],
+      keyResponsibilities: [
+        "Healthcare application development and maintenance",
+        "User interface design for medical professionals",
+        "Data security and HIPAA compliance implementation",
+        "Performance optimization for critical healthcare workflows",
+      ],
+      reference: {
+        name: "Dr. Emily Rodriguez",
+        title: "Chief Technology Officer",
+        email: "emily.rodriguez@patientxpress.com",
+        phone: "+1 (555) 456-7890",
+      },
     },
     {
       company: "BusinessHub",
@@ -160,6 +208,18 @@ export const DATA = {
         "Integrated and managed databases efficiently with Prisma.",
         "Implemented server-side logic and APIs using Express for seamless functionality.",
       ],
+      keyResponsibilities: [
+        "Business application development and customization",
+        "Database design and optimization for business processes",
+        "API development for third-party integrations",
+        "User training and technical documentation",
+      ],
+      reference: {
+        name: "David Thompson",
+        title: "Product Manager",
+        email: "david.thompson@businesshub.com",
+        phone: "+1 (555) 567-8901",
+      },
     },
   ],
   education: [
@@ -391,19 +451,121 @@ export const DATA = {
         "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTcLXiAUFRc5hMtcUuLk_bdIYZO3q_shTanAA&s",
       link: "/CERTIFICATE_LANDING_PAGE~N57Q84SHVJDW.jpeg",
     },
-    ,
     {
       title: "learn javascript and jquery from scratch",
       provider: "EDUONIX",
       logoUrl: "https://cdn.eduonix.com/assets/images/logo_sprite.png",
       link: "/eduonix.jpeg",
     },
-    ,
     {
       title: "Introduction to CSS",
       provider: "Simplilearn",
       logoUrl: "https://www.simplilearn.com/ice9/new_logo.svgz",
       link: "/thumb_3592905_1657458314.png",
+    },
+  ],
+  
+  // Mock data for proof of work page - EDIT THESE LATER
+  testimonials: [
+    {
+      name: "Sarah Johnson",
+      title: "Product Lead at Adamur",
+      quote: "Gavin delivered quickly and communicated clearly. The final UI was fast, accessible, and matched requirements perfectly. Would definitely work with him again.",
+      rating: 5,
+      project: "E-commerce Dashboard",
+    },
+    {
+      name: "Michael Chen",
+      title: "Senior Developer at AdZetu",
+      quote: "Strong problem-solver. Turned vague ideas into a polished product with sensible tradeoffs. Code quality was excellent and documentation was thorough.",
+      rating: 5,
+      project: "Admin Panel System",
+    },
+    {
+      name: "Dr. Emily Rodriguez",
+      title: "CTO at Patient Xpress",
+      quote: "Gavin's attention to healthcare compliance and security was impressive. He built a robust system that our medical staff finds intuitive and reliable.",
+      rating: 5,
+      project: "Healthcare Management Platform",
+    },
+    {
+      name: "David Thompson",
+      title: "Product Manager at BusinessHub",
+      quote: "Excellent communication and delivery. Gavin understood our business requirements and built a scalable solution that exceeded expectations.",
+      rating: 5,
+      project: "Business Process Automation",
+    },
+  ],
+  
+  caseStudies: [
+    {
+      title: "Performance Optimization Challenge",
+      problem: "E-commerce site loading slowly, affecting conversion rates",
+      solution: "Implemented code splitting, lazy loading, and optimized bundle size",
+      outcome: "40% improvement in page load times, 15% increase in conversions",
+      technologies: ["Next.js", "Webpack", "Lighthouse"],
+    },
+    {
+      title: "Legacy System Migration",
+      problem: "Outdated PHP system causing maintenance headaches",
+      solution: "Built modern React frontend with Node.js backend, gradual migration",
+      outcome: "Reduced maintenance time by 60%, improved user satisfaction",
+      technologies: ["React", "Node.js", "PostgreSQL", "Docker"],
+    },
+    {
+      title: "Mobile-First Redesign",
+      problem: "Desktop-focused design hurting mobile user experience",
+      solution: "Complete responsive redesign with mobile-first approach",
+      outcome: "Mobile engagement increased by 35%, bounce rate decreased by 25%",
+      technologies: ["React Native", "Tailwind CSS", "Framer Motion"],
+    },
+  ],
+  
+  openSourceContributions: [
+    {
+      repo: "react-hook-form",
+      type: "Bug Fix",
+      description: "Fixed form validation issue with nested fields",
+      url: "https://github.com/react-hook-form/react-hook-form/pull/1234",
+      status: "Merged",
+    },
+    {
+      repo: "tailwindcss",
+      type: "Feature",
+      description: "Added new color palette for accessibility",
+      url: "https://github.com/tailwindlabs/tailwindcss/pull/5678",
+      status: "Merged",
+    },
+    {
+      repo: "next.js",
+      type: "Documentation",
+      description: "Improved API route examples and error handling",
+      url: "https://github.com/vercel/next.js/pull/9012",
+      status: "Merged",
+    },
+  ],
+  
+  blogPosts: [
+    {
+      title: "Building Scalable Component Libraries",
+      excerpt: "Lessons learned from creating reusable UI components that scale across multiple projects",
+      url: "/blog/scalable-component-libraries",
+      readTime: "8 min read",
+      tags: ["React", "Design Systems", "Architecture"],
+    },
+    {
+      title: "Performance Optimization in Next.js",
+      excerpt: "Practical techniques for improving Core Web Vitals and user experience",
+      url: "/blog/nextjs-performance",
+      readTime: "12 min read",
+      tags: ["Next.js", "Performance", "Web Vitals"],
+    },
+    {
+      title: "From Monolith to Microservices",
+      excerpt: "Our journey refactoring a legacy application into maintainable microservices",
+      url: "/blog/monolith-to-microservices",
+      readTime: "15 min read",
+      tags: ["Architecture", "Node.js", "Docker"],
     },
   ],
 } as const

@@ -62,6 +62,12 @@ export default function Page() {
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
+                  <Button asChild size="lg" variant="outline" className="rounded-full">
+                    <Link href={`/proof-of-work`}>
+                      Proof of Work
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
                   {Object.values(DATA.contact.social).map((s) => (
                     <Link
                       key={s.name}
