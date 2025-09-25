@@ -146,7 +146,7 @@ export const DATA = {
       href: "https://www.adamur.io",
       location: "Remote",
       title: "Delegate Developer",
-      logoUrl: "https://avatars.githubusercontent.com/u/178998573?s=200&v=4",
+      logoUrl: "https://avatars.githubusercontent.com/u/216943655?s=200&v=4",
       start: "September 2024",
       end: "Present",
       description: [
@@ -174,7 +174,7 @@ export const DATA = {
       href: "https://www.adamur.io",
       location: "Remote",
       title: "Delegate Developer",
-      logoUrl: "https://avatars.githubusercontent.com/u/178998573?s=200&v=4",
+      logoUrl: "https://px-asset.netlify.app/image/brand/PX_logo.png",
       start: "September 2024",
       end: "Present",
       description: [
@@ -202,7 +202,7 @@ export const DATA = {
       href: "https://www.adamur.io",
       location: "Remote",
       title: "Delegate Developer",
-      logoUrl: "https://avatars.githubusercontent.com/u/178998573?s=200&v=4",
+      logoUrl: "https://ui.shadcn.com/placeholder.svg",
       start: "September 2024",
       end: "Present",
       description: [
@@ -251,6 +251,28 @@ export const DATA = {
       image: "",
       video:
         "https://video.gumlet.io/67690fd82fbe90b354d66613/67696e682fbe90b354d8ba26/download.mp4",
+    },
+    {
+      title: "Homu",
+      href: "https://home-robot.vercel.app/",
+      dates: "September 2025 - September 2025",
+      active: true,
+      description:
+        "Meet Homu — a safe, capable home assistant that helps with chores, offers gentle companionship, and connects naturally with your voice and your smart home.",
+      technologies: [
+        "shadcn",
+        "TailwindCSS",
+        "Framer-motion",
+        "Typescript",
+        "Nextjs",
+      ],
+      links: [
+        { type: "Website", href: "https://home-robot.vercel.app/", icon: Icons.globe },
+        { type: "Source", href: "", icon: Icons.github },
+      ],
+      image: "",
+      video:
+        "https://video.gumlet.io/67690fd82fbe90b354d66613/68d50bcc028ee75622efdb7a/download.mp4",
     },
     {
       title: "Sitecraft Components",
