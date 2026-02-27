@@ -236,6 +236,21 @@ export const DATA = {
     },
   ],
   projects: [
+    {
+  title: "Pictora",
+  href: "https://pictora-view.vercel.app/",
+  dates: "February 2026",  
+  active: true,
+  description:
+    "A full-screen immersive digital art gallery that recreates the feeling of walking through a physical exhibition. GSAP-powered horizontal scrolling with momentum drag, dynamic blurred gradient backgrounds extracted from each artwork's dominant colors, parallax effects, keyboard navigation, and real-time Unsplash photo search & exploration.",
+  technologies: ["Next.js", "TypeScript", "GSAP", "Framer Motion", "Unsplash API"],
+  links: [
+    { type: "Website", href: "https://pictora-view.vercel.app/", icon: Icons.globe },
+    { type: "Source", href: "https://github.com/gavinarori/Modern-Gallery-view", icon: Icons.github },
+  ],
+  image: "",  
+  video: "https://video.gumlet.io/67690fd82fbe90b354d66613/69a1a1bfe9610ba04e8aa729/download.mp4",  
+},
         {
       title: "Photography-Website",
       href: "https://arori.framer.website/",
