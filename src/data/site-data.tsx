@@ -224,6 +224,34 @@ export const DATA = {
         phone: "+1 (555) 567-8901",
       },
     },
+    {
+  company: "Capek Builders Ltd",
+  href: "https://www.capekbuildersltd.co.ke/",
+  badges: ["Client Work"],
+  location: "Kenya",
+  title: "Frontend Developer (Contract)",
+  logoUrl: "http://capekbuildersltd.co.ke/CAPEK%202.jpg", // replace if needed
+  start: "2025",
+  end: "Present",
+  description: [
+    "Designed and developed a modern, responsive company website to elevate the brand’s digital presence.",
+    "Implemented a clean, high-performance UI with optimized images and fast load times for better user engagement.",
+    "Handled full deployment process including domain configuration, hosting setup, and production optimization.",
+    "Improved accessibility, structure, and mobile responsiveness to reach a wider audience.",
+  ],
+  keyResponsibilities: [
+    "End-to-end website development (design → development → deployment)",
+    "Performance optimization and SEO-friendly structure",
+    "Client communication and requirement translation into UI",
+    "Ongoing updates and maintenance",
+  ],
+  reference: {
+    name: "Capek Builders Team",
+    title: "Client",
+    email: "capekbuilders@gmail.com",
+    phone: "+254 112 780 778",
+  },
+},
   ],
   education: [
     {
@@ -236,6 +264,27 @@ export const DATA = {
     },
   ],
   projects: [
+    {
+  title: "BMW M3 Modern Website Concept",
+  href: "https://m3-demo-website.vercel.app/", // replace with your actual demo
+  dates: "May 2026",
+  active: true,
+  description:
+    "A high-performance, modern website concept inspired by the BMW M3. Built to deliver a cinematic and immersive experience using smooth animations, video-first design, and precision-focused UI. The project explores how automotive storytelling can be elevated through cutting-edge web technologies.",
+  technologies: [
+    "Next.js",
+    "TypeScript",
+    "Framer Motion",
+    "TailwindCSS",
+    "Video Optimization",
+  ],
+  links: [
+    { type: "Website", href: "https://m3-demo-website.vercel.app/", icon: Icons.globe },
+    { type: "Source", href: "https://github.com/gavinarori", icon: Icons.github },
+  ],
+  image: "",
+  video: "https://video.gumlet.io/67690fd82fbe90b354d66613/69f875c037ec9b478191ada9/download.mp4", // optional
+},
     {
   title: "Pictora",
   href: "https://pictora-view.vercel.app/",

@@ -1,7 +1,8 @@
+"use client";
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight } from "lucide-react"
-
+import { useEffect, useRef } from "react";
 import { Button } from "../components/ui/button"
 import DotGridShader from "../components/DotGridShader"
 
@@ -13,6 +14,33 @@ import HighlightText from "../components/highlight-text"
 
 export default function Page() {
   const projects = DATA.projects
+
+   const containerRef = useRef<HTMLDivElement>(null);
+
+ useEffect(() => {
+  const el = containerRef.current;
+  if (!el) return;
+
+  let scrollAmount = 0;
+  let rafId: number;
+
+  const animate = () => {
+    scrollAmount += 0.4; // smoother speed
+
+    if (scrollAmount >= el.scrollWidth / 2) {
+      scrollAmount = 0;
+    }
+
+    el.scrollLeft = scrollAmount;
+    rafId = requestAnimationFrame(animate);
+  };
+
+  rafId = requestAnimationFrame(animate);
+
+  return () => cancelAnimationFrame(rafId);
+}, []);
+
+  const companies = [...DATA.work, ...DATA.work];
 
   return (
     <main className="bg-neutral-950 text-white">
@@ -81,15 +109,47 @@ export default function Page() {
                   ))}
                 </div>
 
-                {/* Companies */}
-                <div className="mt-10">
-                  <p className="mb-3 text-xs font-semibold tracking-widest text-white/50">COMPANIES I&apos;VE WORKED WITH</p>
-                  <ul className="grid grid-cols-2 gap-x-6 gap-y-3 text-2xl font-black text-white/25 sm:grid-cols-3">
-                    {DATA.work.map((w) => (
-                      <li key={w.company}>{w.company}</li>
-                    ))}
-                  </ul>
-                </div>
+    {/* Companies */}
+{/* Companies */}
+<div className="mt-12">
+  {/* Title */}
+  <p className="mb-4 text-xs font-semibold tracking-[0.2em] text-white/40">
+    COMPANIES I’VE WORKED WITH
+  </p>
+
+  {/* 🔁 Marquee (visual / premium layer) */}
+  <div className="relative overflow-hidden mb-6">
+    {/* Fade edges */}
+    <div className="pointer-events-none absolute left-0 top-0 h-full w-20 bg-gradient-to-r from-neutral-950 to-transparent z-10" />
+    <div className="pointer-events-none absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-neutral-950 to-transparent z-10" />
+
+    <div
+      ref={containerRef}
+      className="flex gap-12 whitespace-nowrap overflow-hidden"
+    >
+      {companies.map((w, i) => (
+        <span
+          key={i}
+          className="text-2xl sm:text-3xl font-black text-white/20"
+        >
+          {w.company}
+        </span>
+      ))}
+    </div>
+  </div>
+
+  {/* ✅ Full visible list (actual UX layer) */}
+  <ul className="flex flex-wrap gap-3">
+    {DATA.work.map((w) => (
+      <li
+        key={w.company}
+        className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-semibold text-white/70 hover:text-white hover:bg-white/10 transition"
+      >
+        {w.company}
+      </li>
+    ))}
+  </ul>
+</div>
               </div>
             </RevealOnView>
           </aside>
