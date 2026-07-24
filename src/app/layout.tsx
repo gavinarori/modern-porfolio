@@ -1,34 +1,31 @@
-import type { Metadata } from 'next'
-import './globals.css'
+import type { Metadata } from "next"
+import { Inter, Fraunces } from "next/font/google"
+import "./globals.css"
+import { ThemeProvider } from "../components/theme-provider"
+import { personal } from "../data/portfolio-data"
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  axes: ["opsz"],
+})
 
 export const metadata: Metadata = {
-  title: 'Gavin Arori',
-  description: 'Welcome To My Porfolio, Looking Forward To Build Together',
+  title: `${personal.name} — ${personal.role}`,
+  description: personal.tagline,
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap"
-          rel="stylesheet"
-        />
-        <style>{`
-:root {
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-html { font-family: var(--font-sans); }
-        `}</style>
-      </head>
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} ${fraunces.variable} font-sans antialiased`}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   )
 }

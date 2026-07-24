@@ -3,8 +3,8 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import type { Metadata } from "next"
 
-import { DATA } from "../../data/site-data"
-import RevealOnView from "../../components/reveal-on-view"
+//import { DATA } from "../../data/portfolio-data"
+import {Reveal} from "../../components/reveal"
 import AnimatedHeading from "../../components/animated-heading"
 import DotGridShader from "../../components/DotGridShader"
 import { Button } from "../../components/ui/button"
@@ -13,7 +13,7 @@ import BlogListClient from "./blog-list-client"
 import { getAllPosts, getAllTags, getFeaturedPost } from "../../lib/blog"
 
 export const metadata: Metadata = {
-  title: `Blog — ${DATA.name}`,
+  title: `Blog — }`,
   description: "Articles on frontend architecture, performance, and building real products.",
 }
 
@@ -29,24 +29,18 @@ export default function BlogIndexPage() {
         <div className="grid h-full grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
           {/* LEFT: sticky identity */}
           <aside className="lg:sticky lg:top-4 lg:h-[calc(100svh-2rem)]">
-            <RevealOnView
+            <Reveal
               as="div"
-              intensity="hero"
+             
               className="relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border border-white/10 bg-neutral-900/60 p-6 sm:p-8"
-              staggerChildren
+              
             >
               <div className="pointer-events-none absolute inset-0 opacity-5 mix-blend-soft-light">
                 <DotGridShader />
               </div>
 
               <div>
-                <div className="mb-8 flex items-center gap-3">
-                  <div className="relative h-10 w-10 overflow-hidden rounded-full border border-white/20">
-                    <Image src={DATA.avatarUrl} alt={DATA.name} fill sizes="40px" className="object-cover" />
-                  </div>
-                  <div className="text-2xl font-extrabold tracking-tight">{DATA.name}</div>
-                  <div className="h-2 w-2 rounded-full bg-white/60" aria-hidden="true" />
-                </div>
+               
 
                 <AnimatedHeading
                   className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl"
@@ -83,7 +77,7 @@ export default function BlogIndexPage() {
                   </div>
                 </div>
               </div>
-            </RevealOnView>
+            </Reveal>
           </aside>
 
           {/* RIGHT: featured + grid */}

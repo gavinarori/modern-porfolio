@@ -8,7 +8,7 @@ import remarkGfm from "remark-gfm"
 import rehypeSlug from "rehype-slug"
 import rehypePrettyCode from "rehype-pretty-code"
 
-import { DATA } from "../../../data/site-data"
+import { DATA } from "../../../data/portfolio-data"
 import RevealOnView from "../../../components/reveal-on-view"
 import { Badge } from "../../../components/ui/badge"
 import BlogCard from "../../../components/mdx/blog-card"

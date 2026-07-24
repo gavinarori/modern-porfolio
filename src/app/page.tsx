@@ -1,180 +1,31 @@
-"use client";
-import Link from "next/link"
-import Image from "next/image"
-import { ArrowRight } from "lucide-react"
-import { useEffect, useRef } from "react";
-import { Button } from "../components/ui/button"
-import DotGridShader from "../components/DotGridShader"
-
-import ProjectCard from "../components/project-card"
-import AnimatedHeading from "../components/animated-heading"
-import RevealOnView from "../components/reveal-on-view"
-import { DATA } from "../data/site-data"
-import HighlightText from "../components/highlight-text"
+import { Nav } from "../components/nav"
+import { ScrollProgress } from "../components/scroll-progress"
+import { Hero } from "../components/hero"
+import { About } from "../components/about"
+import { Experience } from "../components/experience"
+import { Projects } from "../components/projects"
+import { Skills } from "../components/skills"
+import { BlogTeaser } from "../components/blog-teaser"
+import { Testimonials } from "../components/testimonials"
+import { Contact } from "../components/contact"
+import { Footer } from "../components/footer"
 
 export default function Page() {
-  const projects = DATA.projects
-
-   const containerRef = useRef<HTMLDivElement>(null);
-
- useEffect(() => {
-  const el = containerRef.current;
-  if (!el) return;
-
-  let scrollAmount = 0;
-  let rafId: number;
-
-  const animate = () => {
-    scrollAmount += 0.4; // smoother speed
-
-    if (scrollAmount >= el.scrollWidth / 2) {
-      scrollAmount = 0;
-    }
-
-    el.scrollLeft = scrollAmount;
-    rafId = requestAnimationFrame(animate);
-  };
-
-  rafId = requestAnimationFrame(animate);
-
-  return () => cancelAnimationFrame(rafId);
-}, []);
-
-  const companies = [...DATA.work, ...DATA.work];
-
   return (
-    <main className="bg-neutral-950 text-white">
-      {/* HERO: full-viewport row. Left is sticky; right scrolls internally. */}
-      <section className="px-4 pt-4 pb-16 lg:pb-4">
-        <div className="grid h-full grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
-          {/* LEFT: sticky and full height, no cut off */}
-          <aside className="lg:sticky lg:top-4 lg:h-[calc(100svh-2rem)]">
-            <RevealOnView
-              as="div"
-              intensity="hero"
-              className="relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border border-white/10 bg-neutral-900/60 p-6 sm:p-8"
-              staggerChildren
-            >
-              {/* Texture background */}
-              <div className="pointer-events-none absolute inset-0 opacity-5 mix-blend-soft-light">
-                <DotGridShader />
-              </div>
-              <div>
-                {/* Header */}
-                <div className="mb-8 flex items-center gap-3">
-                  <div className="relative h-10 w-10 overflow-hidden rounded-full border border-white/20">
-                    <Image src={DATA.avatarUrl} alt={DATA.name} fill sizes="40px" className="object-cover" />
-                  </div>
-                  <div className="text-2xl font-extrabold tracking-tight">{DATA.name}</div>
-                  <div className="h-2 w-2 rounded-full bg-white/60" aria-hidden="true" />
-                </div>
-
-                {/* Headline */}
-                <AnimatedHeading
-                  className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl"
-                  lines={[DATA.name, "Software Engineer"]}
-                />
-
-                <p className="mt-4 max-w-[42ch] text-lg text-white/70">
-                  <HighlightText
-                    text={DATA.summary}
-                    phrases={["real-world problems", "high-performance applications"]}
-                  />
-                </p>
-
-                {/* CTAs + Socials */}
-                <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <Button asChild size="lg" className="rounded-full">
-                    <Link href={`/about`}>
-                      About me
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button asChild size="lg"  className="rounded-full">
-                    <Link href={`/proof-of-work`}>
-                      Proof of Work
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                  {Object.values(DATA.contact.social).map((s) => (
-                    <Link
-                      key={s.name}
-                      href={s.url}
-                      className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm font-medium text-white/90 backdrop-blur transition-colors hover:bg-white/20"
-                      aria-label={s.name}
-                    >
-                      {s.icon ? <s.icon className="h-3 w-3" /> : null}
-                      {s.name}
-                    </Link>
-                  ))}
-                </div>
-
-    {/* Companies */}
-{/* Companies */}
-<div className="mt-12">
-  {/* Title */}
-  <p className="mb-4 text-xs font-semibold tracking-[0.2em] text-white/40">
-    COMPANIES I’VE WORKED WITH
-  </p>
-
-  {/* 🔁 Marquee (visual / premium layer) */}
-  <div className="relative overflow-hidden mb-6">
-    {/* Fade edges */}
-    <div className="pointer-events-none absolute left-0 top-0 h-full w-20 bg-gradient-to-r from-neutral-950 to-transparent z-10" />
-    <div className="pointer-events-none absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-neutral-950 to-transparent z-10" />
-
-    <div
-      ref={containerRef}
-      className="flex gap-12 whitespace-nowrap overflow-hidden"
-    >
-      {companies.map((w, i) => (
-        <span
-          key={i}
-          className="text-2xl sm:text-3xl font-black text-white/20"
-        >
-          {w.company}
-        </span>
-      ))}
-    </div>
-  </div>
-
-  {/* ✅ Full visible list (actual UX layer) */}
-  <ul className="flex flex-wrap gap-3">
-    {DATA.work.map((w) => (
-      <li
-        key={w.company}
-        className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-semibold text-white/70 hover:text-white hover:bg-white/10 transition"
-      >
-        {w.company}
-      </li>
-    ))}
-  </ul>
-</div>
-              </div>
-            </RevealOnView>
-          </aside>
-
-          {/* RIGHT: simplified, no internal card or horizontal carousel */}
-          <div className="space-y-4">
-            {projects.map((p, idx) => (
-              <ProjectCard
-                key={p.title}
-                title={p.title}
-                subtitle={p.dates}
-                imageSrc={p.image}
-                videoSrc={p.video}
-                technologies={p.technologies as ReadonlyArray<string>}
-                description={p.description}
-                links={p.links as ReadonlyArray<any>}
-                href={p.href}
-                imageContainerClassName="lg:h-full"
-                containerClassName="lg:h-[calc(100svh-2rem)]"
-                revealDelay={idx * 0.06}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-    </main>
+    <>
+      <ScrollProgress />
+      <Nav />
+      <main>
+        <Hero />
+        <About />
+        <Experience />
+        <Projects />
+        <Skills />
+        <BlogTeaser />
+        <Testimonials />
+        <Contact />
+      </main>
+      <Footer />
+    </>
   )
 }

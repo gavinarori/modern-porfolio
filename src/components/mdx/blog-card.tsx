@@ -2,7 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
-import RevealOnView from "../reveal-on-view"
+import RevealOnView from "../reveal"
 import { Badge } from "../ui/badge"
 import type { PostMeta } from "../../lib/blog"
 

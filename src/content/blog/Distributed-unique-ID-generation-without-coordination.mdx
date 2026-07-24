@@ -1,0 +1,201 @@
+---
+title: "50 Servers, Zero Collisions: Building a URL Shortener With No Shared Database"
+description: "How to hand out 100 million unique codes from 50 independent servers that never talk to each other — and never collide."
+date: "2026-07-24"
+tags: ["system-design", "distributed-systems", "go", "architecture"]
+---
+
+# 50 Servers, Zero Collisions
+
+## The problem, stated plainly
+
+A URL shortener has exactly one job that sounds trivial and isn't: turn a long link into a short code that nobody else has ever used, and never will.
+
+Say the traffic level. 100 million links. 50 servers behind a load balancer, each one taking requests independently. Now ask the question that actually matters:
+
+**How does a server know a code is free without asking anyone?**
+
+The obvious answer — keep a central database of every code that's been issued, and check it before handing out a new one — works. It also quietly becomes the whole system's ceiling. Every one of those 50 servers now depends on one database being up, being fast, and being reachable, for every single request. Add more servers and you don't get more throughput, you get more contention on the one resource everyone has to share. The database that was supposed to guarantee correctness becomes the thing that decides how fast the whole product can grow.
+
+So the real question isn't "how do we check for collisions fast enough." It's sharper than that:
+
+**What if there were nothing to check?**
+
+## Why "just add a cache" doesn't solve it
+
+The instinct is to keep the central database but hide its latency behind a cache, or shard it, or replicate it. All of these make the symptom smaller. None of them remove the actual constraint, which is this: as long as uniqueness is *decided at request time by comparing against everyone else's history*, some form of coordination is unavoidable. A cache still needs to be invalidated correctly across 50 servers. A shard still needs a router that knows which shard owns which key — which is itself a shared piece of coordination logic. You can make the bottleneck faster. You can't make it disappear, because the design still assumes servers need to ask.
+
+The alternative is to stop asking. Decide, in advance, that it's structurally impossible for two servers to produce the same code — not unlikely, not checked, *impossible* — and then nobody needs to check anything, ever.
+
+## The naive shape of the problem
+
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram: 50 servers all depending on one central database for every request">
+  <rect width="720" height="320" fill="#ffffff" />
+  <text x="360" y="28" text-anchor="middle" font-family="ui-monospace, monospace" font-size="14" fill="#0b1220" font-weight="700">THE NAIVE APPROACH — everyone asks one referee</text>
+
+  <g font-family="ui-monospace, monospace" font-size="11" fill="#334155">
+    <rect x="40" y="60" width="90" height="36" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="85" y="82" text-anchor="middle">Server 1</text>
+    <rect x="150" y="60" width="90" height="36" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="195" y="82" text-anchor="middle">Server 2</text>
+    <rect x="260" y="60" width="90" height="36" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="305" y="82" text-anchor="middle">Server 3</text>
+    <rect x="370" y="60" width="90" height="36" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="415" y="82" text-anchor="middle">...</text>
+    <rect x="480" y="60" width="90" height="36" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="525" y="82" text-anchor="middle">Server 49</text>
+    <rect x="590" y="60" width="90" height="36" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="635" y="82" text-anchor="middle">Server 50</text>
+  </g>
+
+  <g stroke="#cbd5e1" stroke-width="1.5">
+    <line x1="85" y1="96" x2="340" y2="180"/>
+    <line x1="195" y1="96" x2="345" y2="180"/>
+    <line x1="305" y1="96" x2="350" y2="180"/>
+    <line x1="525" y1="96" x2="380" y2="180"/>
+    <line x1="635" y1="96" x2="385" y2="180"/>
+  </g>
+
+  <rect x="270" y="180" width="160" height="60" rx="8" fill="#fee2e2" stroke="#ef4444" stroke-width="2"/>
+  <text x="350" y="205" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#991b1b" font-weight="700">"IS THIS TAKEN?"</text>
+  <text x="350" y="223" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#991b1b">central database</text>
+
+  <text x="350" y="270" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="12" fill="#64748b">Every server, every request, one shared answer to wait on.</text>
+  <text x="350" y="288" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="12" fill="#64748b">More servers doesn't mean more throughput — it means more queue.</text>
+</svg>
+
+Every arrow in that picture is a dependency. If the database is slow, all 50 servers are slow, at the same moment, for the same reason. If it's briefly unreachable, every server is stuck, not just one. The system's reliability is capped at the reliability of its single busiest component — the one everyone was told to check with.
+
+## Reframing the question
+
+Here's the move that unlocks the rest of this design: **uniqueness doesn't have to be verified. It can be guaranteed by construction.**
+
+Instead of "check if this code is free," the question becomes: *can we design the codes so that it's mathematically impossible for two servers to ever generate the same one — without either server knowing the other exists?*
+
+That reframing turns a runtime coordination problem into a one-time setup decision. And once it's a setup decision, it can be made once, at deploy time, and never revisited on the request path again.
+
+## The actual answer: give every server its own signature
+
+Each of the 50 servers is assigned a fixed, permanent ID — an ordinary number from 0 to 49 — when it's deployed. Nobody negotiates this at runtime. It's handed out once, the same way you'd hand out employee badge numbers before anyone starts their shift.
+
+From that point on, every code a server generates carries its ID embedded inside it, like a watermark. The rest of the code comes from a counter that server keeps entirely in its own memory — a number it increments every time it hands out a new code. That counter is never written to a shared database, never synced, never even visible to any other server.
+
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram: how a code is assembled from a local counter and an embedded server ID">
+  <rect width="720" height="260" fill="#ffffff" />
+  <text x="360" y="28" text-anchor="middle" font-family="ui-monospace, monospace" font-size="14" fill="#0b1220" font-weight="700">HOW ONE CODE IS BUILT — no server asks another</text>
+
+  <g font-family="ui-monospace, monospace" font-size="12" fill="#0b1220">
+    <rect x="40" y="60" width="220" height="50" rx="6" fill="#e0f2fe" stroke="#0284c7"/>
+    <text x="150" y="90" text-anchor="middle" font-weight="700">local counter (in RAM)</text>
+
+    <text x="300" y="90" text-anchor="middle" font-size="18" fill="#64748b">+</text>
+
+    <rect x="330" y="60" width="180" height="50" rx="6" fill="#fef3c7" stroke="#d97706"/>
+    <text x="420" y="90" text-anchor="middle" font-weight="700">server ID (fixed)</text>
+
+    <text x="530" y="90" text-anchor="middle" font-size="18" fill="#64748b">=</text>
+
+    <rect x="560" y="60" width="120" height="50" rx="6" fill="#dcfce7" stroke="#16a34a"/>
+    <text x="620" y="90" text-anchor="middle" font-weight="700">unique number</text>
+  </g>
+
+  <line x1="360" y1="120" x2="360" y2="150" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+  <rect x="180" y="150" width="360" height="46" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+  <text x="360" y="178" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" fill="#334155">scramble (reversible shuffle, hides the sequence)</text>
+
+  <line x1="360" y1="196" x2="360" y2="216" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+  <rect x="230" y="216" width="260" height="34" rx="6" fill="#0b1220"/>
+  <text x="360" y="238" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#5eead4" font-weight="700">5p7OCYF  ← the short code</text>
+
+  <defs>
+    <marker id="arrow2" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+</svg>
+
+Two servers can only ever produce the same final number if *every part of it* matches — and the server-ID portion is permanently different between them. Server 7 could never produce a number that Server 12 could also produce, no matter what either of their counters is doing, because the last few bits of every number Server 7 emits always say "7," and the last few bits of every number Server 12 emits always say "12." It's not that a collision is unlikely. It's that the two servers are drawing from disjoint sets of numbers, by construction. There is no set of coincidences that could make them overlap.
+
+That single design decision is what removes the central database from the picture entirely. Nobody has to check anything, because there's nothing left to accidentally collide.
+
+## "But doesn't that make the codes predictable?"
+
+Good instinct — and yes, on its own it would. If Server 7's counter goes 1, 2, 3, 4, then its raw codes would climb in an obvious, guessable order. Anyone who saw one short link could start incrementing it and walk through every other link the same server had ever issued.
+
+That's what the *scramble* step in the diagram above is for. Before a raw number becomes a short code, it's run through a reversible mathematical shuffle — the kind of operation where every input maps to exactly one output and every output maps back to exactly one input. Because it's one-to-one in both directions, it can reorder the numbers however chaotically it likes without ever merging two different numbers into the same output. Unpredictable on the outside, still collision-free underneath, for free.
+
+## Following one request all the way through
+
+<svg viewBox="0 0 760 460" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sequence diagram of a shorten request and a later redirect request">
+  <rect width="760" height="460" fill="#ffffff" />
+  <text x="380" y="28" text-anchor="middle" font-family="ui-monospace, monospace" font-size="14" fill="#0b1220" font-weight="700">REQUEST FLOW — creating a link, then following it</text>
+
+  <g font-family="ui-monospace, monospace" font-size="11" fill="#0b1220">
+    <rect x="40" y="50" width="120" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="100" y="72" text-anchor="middle">Browser</text>
+    <rect x="240" y="50" width="150" height="34" rx="6" fill="#e0f2fe" stroke="#0284c7"/>
+    <text x="315" y="72" text-anchor="middle">Server 7 (any one)</text>
+    <rect x="480" y="50" width="220" height="34" rx="6" fill="#fef3c7" stroke="#d97706"/>
+    <text x="590" y="72" text-anchor="middle">Shared store (Postgres/Redis)</text>
+  </g>
+
+  <line x1="100" y1="84" x2="100" y2="420" stroke="#cbd5e1" stroke-dasharray="3,3"/>
+  <line x1="315" y1="84" x2="315" y2="420" stroke="#cbd5e1" stroke-dasharray="3,3"/>
+  <line x1="590" y1="84" x2="590" y2="420" stroke="#cbd5e1" stroke-dasharray="3,3"/>
+
+  <text x="20" y="112" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#64748b" font-weight="700">SHORTEN</text>
+  <line x1="100" y1="120" x2="315" y2="120" stroke="#0b1220" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <text x="200" y="112" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#334155">POST /api/shorten {`{url}`}</text>
+
+  <rect x="255" y="132" width="120" height="30" rx="4" fill="#e0f2fe" stroke="#0284c7"/>
+  <text x="315" y="151" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#0b1220">counter++, embed ID 7</text>
+
+  <line x1="315" y1="178" x2="590" y2="178" stroke="#0b1220" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <text x="450" y="172" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#334155">save(code → url)</text>
+
+  <line x1="590" y1="196" x2="315" y2="196" stroke="#0b1220" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <text x="450" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#334155">ok</text>
+
+  <line x1="315" y1="228" x2="100" y2="228" stroke="#0b1220" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <text x="200" y="222" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#334155">{`{ code: "5p7OCYF" }`}</text>
+
+  <line x1="40" y1="256" x2="720" y2="256" stroke="#e2e8f0"/>
+  <text x="20" y="284" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#64748b" font-weight="700">REDIRECT (later, maybe on a different server)</text>
+
+  <rect x="240" y="296" width="150" height="34" rx="6" fill="#fee2e2" stroke="#ef4444"/>
+  <text x="315" y="318" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#0b1220">Server 23 (different one)</text>
+
+  <line x1="100" y1="352" x2="315" y2="352" stroke="#0b1220" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <text x="200" y="346" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#334155">GET /5p7OCYF</text>
+
+  <line x1="315" y1="372" x2="590" y2="372" stroke="#0b1220" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <text x="450" y="366" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#334155">resolve("5p7OCYF")</text>
+
+  <line x1="590" y1="392" x2="315" y2="392" stroke="#0b1220" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <text x="450" y="406" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#334155">https://original-url</text>
+
+  <line x1="315" y1="420" x2="100" y2="420" stroke="#0b1220" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <text x="200" y="414" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#334155">302 redirect</text>
+
+  <defs>
+    <marker id="arrow3" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#0b1220"/>
+    </marker>
+  </defs>
+</svg>
+
+Notice the asymmetry in that diagram, because it's the whole point: **creating** a code is a local decision Server 7 makes entirely on its own — no coordination, no lookup, no waiting on anyone. **Resolving** a code back to a URL is a different problem, because a redirect for a link Server 7 created might land on Server 23 instead, depending on which one the load balancer happens to route to that moment. Server 23 has no idea what Server 7's counter is doing, and it doesn't need to — but it *does* need somewhere shared to look up what `5p7OCYF` points to.
+
+## The honest boundary of this design
+
+This is worth being direct about, because it's the natural next question and skipping it would be dishonest: **generating** a unique code needs zero coordination. **Looking one up later** still needs a shared, queryable store — a real database, not a local map on one server. Those are two different problems wearing the same URL. The architecture here removes the database from the write path entirely, and keeps it only for reads, which is a very different load profile: one shared store getting simple key lookups, instead of every server racing to ask "is this taken?" before every single write.
+
+There's a second honest gap: a server's counter lives in memory. If that server crashes and restarts, the counter resets to zero — and it could, in theory, reissue a code it already gave out before the crash. Solving that doesn't require going back to a central database; it just means the counter needs to survive a restart, typically by checkpointing it to local disk every so often instead of trusting memory alone.
+
+## Why this is worth the trade-off
+
+The rhetorical question underneath all of this is really: *what has to be true at request time, versus what only has to be true once, in advance?*
+
+Every collision-prevention scheme that checks at request time inherits the latency, the failure modes, and the scaling ceiling of whatever it's checking against. Every scheme that instead makes collisions *structurally impossible* — by partitioning the space up front and never overlapping it again — pays a one-time design cost and then gets to stop worrying about it. Fifty servers each holding a number nobody else can produce isn't a clever trick so much as a refusal to ask a question that never needed asking in the first place.

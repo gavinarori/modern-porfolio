@@ -3,12 +3,12 @@ import Image from "next/image"
 import { ArrowRight, Github, Video, FileText, MessageSquare, GitPullRequest, NotebookText, SplitSquareVertical } from "lucide-react"
 
 import AnimatedHeading from "../../components/animated-heading"
-import RevealOnView from "../../components/reveal-on-view"
+import RevealOnView from "../../components/reveal"
 import ProjectCard from "../../components/project-card"
 import DotGridShader from "../../components/DotGridShader"
 import { Button } from "../../components/ui/button"
 import { Badge } from "../../components/ui/badge"
-import { DATA } from "../../data/site-data"
+import { DATA } from "../../data/portfolio-data"
 
 export default function ProofOfWorkPage() {
   const { projects, contact, work } = DATA
