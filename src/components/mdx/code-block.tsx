@@ -19,7 +19,7 @@ export function CodeBlock(props: HTMLAttributes<HTMLPreElement>) {
   }
 
   return (
-    <div className="group relative my-6 overflow-hidden rounded-2xl border border-white/10">
+    <div className="group relative my-6 overflow-hidden rounded-2xl border border-border">
       <button
         type="button"
         onClick={handleCopy}

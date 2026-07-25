@@ -1,17 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion"
 import { Menu, X } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
 import { personal } from "../data/portfolio-data"
 
 const LINKS = [
-  { href: "#about", label: "About" },
-  { href: "#experience", label: "Experience" },
-  { href: "#projects", label: "Projects" },
-  { href: "#skills", label: "Skills" },
-  { href: "#contact", label: "Contact" },
+  { href: "/about", label: "About" },
+  { href: "/experience", label: "Experience" },
+  { href: "/projects", label: "Projects" },
+  { href: "/blog", label: "Writing" },
+  { href: "/contact", label: "Contact" },
 ]
 
 export function Nav() {
@@ -39,19 +40,19 @@ export function Nav() {
         className="border-b backdrop-blur supports-[backdrop-filter]:bg-background/80"
       >
         <nav className="mx-auto flex h-16 max-w-4xl items-center justify-between px-6">
-          <a href="#top" className="font-serif text-lg font-medium tracking-tight">
+          <Link href="/" className="font-serif text-lg font-medium tracking-tight">
             {personal.name}
-          </a>
+          </Link>
 
           <div className="hidden items-center gap-8 md:flex">
             {LINKS.map((link) => (
-              <a
+              <Link
                 key={link.href}
                 href={link.href}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
             <ThemeToggle />
           </div>
@@ -81,14 +82,14 @@ export function Nav() {
           >
             <div className="flex flex-col gap-1 px-6 py-4">
               {LINKS.map((link) => (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
                   className="rounded-lg px-2 py-3 text-base text-foreground/90 transition-colors hover:bg-muted"
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </div>
           </motion.div>

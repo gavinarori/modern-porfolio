@@ -18,14 +18,8 @@ export default function Page() {
       <main>
         <Hero />
         <About />
-        <Experience />
-        <Projects />
-        <Skills />
-        <BlogTeaser />
-        <Testimonials />
-        <Contact />
+      
       </main>
-      <Footer />
     </>
   )
 }

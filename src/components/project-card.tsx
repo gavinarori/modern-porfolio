@@ -1,16 +1,17 @@
+
 "use client"
 
 import Image from "next/image"
 import { motion } from "framer-motion"
-import { ArrowUpRight, Github } from "lucide-react"
+import { ArrowUpRight, Github, Play } from "lucide-react"
 import type { Project } from "../data/portfolio-data"
 
 export function ProjectCard({
   project,
-  onReadCaseStudy,
+  onOpen,
 }: {
   project: Project
-  onReadCaseStudy: (project: Project) => void
+  onOpen: (project: Project) => void
 }) {
   return (
     <motion.div
@@ -22,7 +23,12 @@ export function ProjectCard({
       whileHover={{ y: -6 }}
       className="group overflow-hidden rounded-2xl border border-border bg-card"
     >
-      <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted">
+      <button
+        type="button"
+        onClick={() => onOpen(project)}
+        aria-label={`Open ${project.title}`}
+        className="relative block aspect-[16/10] w-full overflow-hidden bg-muted"
+      >
         {project.video ? (
           <video
             src={project.video}
@@ -43,7 +49,12 @@ export function ProjectCard({
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
         )}
-      </div>
+        {project.video && (
+          <span className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
+            <Play className="ml-0.5 h-3.5 w-3.5" fill="currentColor" />
+          </span>
+        )}
+      </button>
 
       <div className="p-6">
         <h3 className="font-serif text-xl">{project.title}</h3>
@@ -61,18 +72,18 @@ export function ProjectCard({
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-4">
-          {project.caseStudy && (
-            <button
-              type="button"
-              onClick={() => onReadCaseStudy(project)}
-              className="text-sm font-medium underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:decoration-foreground"
-            >
-              Read case study
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onOpen(project)}
+            className="text-sm font-medium underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:decoration-foreground"
+          >
+            {project.caseStudy ? "Read case study" : "View project"}
+          </button>
           {project.liveUrl && (
             <a
               href={project.liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               Live <ArrowUpRight className="h-3.5 w-3.5" />
@@ -81,6 +92,8 @@ export function ProjectCard({
           {project.githubUrl && (
             <a
               href={project.githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <Github className="h-3.5 w-3.5" /> Code

@@ -6,7 +6,7 @@ import readingTime from "reading-time"
 // Works whether content lives at <root>/content/blog or <root>/src/content/blog
 function resolveBlogDir() {
   const withSrc = path.join(process.cwd(), "src/content/blog")
-  const withoutSrc = path.join(process.cwd(), "/content/blog")
+  const withoutSrc = path.join(process.cwd(), "content/blog")
   return fs.existsSync(withSrc) ? withSrc : withoutSrc
 }
 

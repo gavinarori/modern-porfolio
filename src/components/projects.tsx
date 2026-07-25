@@ -29,7 +29,7 @@ export function Projects() {
         <Reveal className="max-w-3xl">
           <p className="mb-4 text-sm tracking-widest text-muted-foreground">PROJECTS</p>
           <h2 className="font-serif text-3xl leading-tight tracking-tight sm:text-4xl">
-            Things I&apos;ve shipped, and the tradeoffs behind them.
+            Things I've shipped, and the tradeoffs behind them.
           </h2>
         </Reveal>
 
@@ -57,7 +57,7 @@ export function Projects() {
         <motion.div layout className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
           <AnimatePresence mode="popLayout">
             {filtered.map((project) => (
-              <ProjectCard key={project.id} project={project} onReadCaseStudy={setOpenProject} />
+              <ProjectCard key={project.id} project={project} onOpen={setOpenProject} />
             ))}
           </AnimatePresence>
         </motion.div>

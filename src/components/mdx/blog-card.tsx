@@ -1,9 +1,9 @@
+
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowUpRight } from "lucide-react"
 
-import RevealOnView from "../reveal"
-import { Badge } from "../ui/badge"
+import { Reveal } from "../reveal"
 import type { PostMeta } from "../../lib/blog"
 
 function formatDate(dateStr: string) {
@@ -23,16 +23,16 @@ export default function BlogCard({
   delay?: number
 }) {
   return (
-    <RevealOnView
+    <Reveal
       delay={delay}
-      className={`group rounded-3xl border border-white/10 bg-neutral-900/60 p-0 overflow-hidden transition-colors hover:border-white/20 ${
+      className={`group overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-foreground/30 ${
         featured ? "sm:col-span-2" : ""
       }`}
     >
       <Link href={`/blog/${post.slug}`} className="block">
         <div className={`grid gap-0 ${featured ? "sm:grid-cols-2" : "grid-cols-1"}`}>
           <div
-            className={`relative overflow-hidden bg-white/5 ${
+            className={`relative overflow-hidden bg-muted ${
               featured ? "aspect-[4/3] sm:aspect-auto" : "aspect-[16/9]"
             }`}
           >
@@ -45,7 +45,7 @@ export default function BlogCard({
                 className="object-cover transition-transform duration-500 group-hover:scale-105"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-white/20">
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
                 <span className="text-sm font-semibold tracking-widest">ARTICLE</span>
               </div>
             )}
@@ -55,33 +55,36 @@ export default function BlogCard({
             <div>
               <div className="mb-3 flex flex-wrap gap-2">
                 {post.tags.slice(0, 3).map((tag) => (
-                  <Badge key={tag} className="bg-white/10 text-white border-white/20 text-xs">
+                  <span
+                    key={tag}
+                    className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground"
+                  >
                     {tag}
-                  </Badge>
+                  </span>
                 ))}
               </div>
               <h3
-                className={`font-bold tracking-tight text-white ${
+                className={`font-serif tracking-tight text-foreground ${
                   featured ? "text-xl sm:text-2xl" : "text-lg"
                 }`}
               >
                 {post.title}
               </h3>
-              <p className="mt-2 line-clamp-2 text-sm text-white/60">{post.excerpt}</p>
+              <p className="mt-2 line-clamp-2 text-sm text-foreground/70">{post.excerpt}</p>
             </div>
 
-            <div className="mt-4 flex items-center justify-between text-xs text-white/50">
+            <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
               <span>
                 {formatDate(post.date)} · {post.readTime}
               </span>
-              <span className="inline-flex items-center gap-1 font-medium text-white/80 transition-transform group-hover:translate-x-1">
+              <span className="inline-flex items-center gap-1 font-medium text-foreground/80 transition-transform group-hover:translate-x-1">
                 Read
-                <ArrowRight className="h-3 w-3" />
+                <ArrowUpRight className="h-3 w-3" />
               </span>
             </div>
           </div>
         </div>
       </Link>
-    </RevealOnView>
+    </Reveal>
   )
 }

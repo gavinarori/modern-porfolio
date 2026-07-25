@@ -8,11 +8,10 @@ import remarkGfm from "remark-gfm"
 import rehypeSlug from "rehype-slug"
 import rehypePrettyCode from "rehype-pretty-code"
 
-import { DATA } from "../../../data/portfolio-data"
-import RevealOnView from "../../../components/reveal-on-view"
-import { Badge } from "../../../components/ui/badge"
+import { Reveal } from "../../../components/reveal"
 import BlogCard from "../../../components/mdx/blog-card"
 import { mdxComponents } from "../../../components/mdx-components"
+import { personal } from "../../../data/portfolio-data"
 import {
   getAllSlugs,
   getPostBySlug,
@@ -34,7 +33,7 @@ export async function generateMetadata({
   if (!post) return {}
 
   return {
-    title: `${post.title} — ${DATA.name}`,
+    title: `${post.title} — ${personal.name}`,
     description: post.excerpt,
     openGraph: {
       title: post.title,
@@ -76,142 +75,123 @@ export default async function BlogPostPage({
   }
 
   return (
-    <main className="bg-neutral-950 text-white">
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+    <article className="px-6 pb-28 pt-32 sm:pt-40">
+      {/* eslint-disable-next-line react/no-danger */}
       <script
         type="application/ld+json"
-        // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <section className="px-4 pt-4 pb-16 lg:pb-8">
-        <div className="grid h-full grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
-          {/* LEFT: sticky meta */}
-          <aside className="lg:sticky lg:top-4 lg:h-fit">
-            <RevealOnView
-              as="div"
-              intensity="hero"
-              className="relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-neutral-900/60 p-6 sm:p-8"
-              staggerChildren
-            >
+      <div className="mx-auto max-w-2xl">
+        <Reveal>
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            All articles
+          </Link>
+
+          {post.tags.length > 0 && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              {post.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <h1 className="mt-5 font-serif text-3xl leading-tight tracking-tight sm:text-4xl">
+            {post.title}
+          </h1>
+          <p className="mt-4 text-lg leading-relaxed text-foreground/70">{post.excerpt}</p>
+
+          <div className="mt-6 flex items-center gap-4 border-y border-border py-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <div className="relative h-7 w-7 overflow-hidden rounded-full border border-border">
+                <Image src={personal.avatarUrl} alt={post.author} fill sizes="28px" className="object-cover" />
+              </div>
+              <span className="font-medium text-foreground/80">{post.author}</span>
+            </div>
+            <span className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5" />
+              {formatDate(post.date)}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              {post.readTime}
+            </span>
+          </div>
+        </Reveal>
+
+        {post.cover && (
+          <Reveal delay={0.05} className="relative mt-8 aspect-[16/9] w-full overflow-hidden rounded-2xl border border-border">
+            <Image src={post.cover} alt={post.title} fill sizes="(max-width: 768px) 100vw, 672px" className="object-cover" priority />
+          </Reveal>
+        )}
+
+        <Reveal delay={0.1} className="mt-10">
+          <MDXRemote
+            source={post.content}
+            components={mdxComponents}
+            options={{
+              mdxOptions: {
+                remarkPlugins: [remarkGfm],
+                rehypePlugins: [
+                  rehypeSlug,
+                  [rehypePrettyCode, { theme: "github-dark-dimmed", keepBackground: true }],
+                ],
+              },
+            }}
+          />
+        </Reveal>
+
+        {/* Prev / next */}
+        {(prev || next) && (
+          <div className="mt-16 grid grid-cols-1 gap-4 border-t border-border pt-10 sm:grid-cols-2">
+            {prev && (
               <Link
-                href="/blog"
-                className="mb-6 inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur transition-colors hover:bg-white/20"
+                href={`/blog/${prev.slug}`}
+                className="group rounded-2xl border border-border bg-card p-5 transition-colors hover:border-foreground/30"
               >
-                <ArrowLeft className="h-4 w-4" />
-                All articles
+                <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <ArrowLeft className="h-3 w-3" /> Older
+                </div>
+                <div className="font-medium text-foreground/90 group-hover:text-foreground">{prev.title}</div>
               </Link>
-
-              <div className="mb-6 flex items-center gap-3">
-                <div className="relative h-10 w-10 overflow-hidden rounded-full border border-white/20">
-                  <Image src={DATA.avatarUrl} alt={post.author} fill sizes="40px" className="object-cover" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold">{post.author}</div>
-                  <div className="text-xs text-white/50">Author</div>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-sm text-white/60">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5" />
-                  {formatDate(post.date)}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5" />
-                  {post.readTime}
-                </div>
-              </div>
-
-              {post.tags.length > 0 && (
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {post.tags.map((tag) => (
-                    <Badge key={tag} className="bg-white/10 text-white border-white/20 text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </RevealOnView>
-          </aside>
-
-          {/* RIGHT: article */}
-          <div className="space-y-4">
-            <RevealOnView className="overflow-hidden rounded-3xl border border-white/10 bg-neutral-900/60">
-              {post.cover && (
-                <div className="relative aspect-[16/9] w-full">
-                  <Image src={post.cover} alt={post.title} fill sizes="(max-width: 1024px) 100vw, 700px" className="object-cover" priority />
-                </div>
-              )}
-
-              <div className="p-6 sm:p-10">
-                <h1 className="text-3xl font-black leading-tight tracking-tight sm:text-4xl">
-                  {post.title}
-                </h1>
-                <p className="mt-4 text-lg text-white/60">{post.excerpt}</p>
-
-                <div className="mt-10 border-t border-white/10 pt-10">
-                  <MDXRemote
-                    source={post.content}
-                    components={mdxComponents}
-                    options={{
-                      mdxOptions: {
-                        remarkPlugins: [remarkGfm],
-                        rehypePlugins: [
-                          rehypeSlug,
-                          [rehypePrettyCode, { theme: "github-dark-dimmed", keepBackground: true }],
-                        ],
-                      },
-                    }}
-                  />
-                </div>
-              </div>
-            </RevealOnView>
-
-            {/* Prev / next */}
-            {(prev || next) && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {prev && (
-                  <Link
-                    href={`/blog/${prev.slug}`}
-                    className="group rounded-2xl border border-white/10 bg-neutral-900/60 p-5 transition-colors hover:border-white/20"
-                  >
-                    <div className="mb-1 flex items-center gap-1 text-xs text-white/50">
-                      <ArrowLeft className="h-3 w-3" /> Older
-                    </div>
-                    <div className="font-semibold text-white/90 group-hover:text-white">{prev.title}</div>
-                  </Link>
-                )}
-                {next && (
-                  <Link
-                    href={`/blog/${next.slug}`}
-                    className="group rounded-2xl border border-white/10 bg-neutral-900/60 p-5 text-right transition-colors hover:border-white/20 sm:col-start-2"
-                  >
-                    <div className="mb-1 flex items-center justify-end gap-1 text-xs text-white/50">
-                      Newer <ArrowRight className="h-3 w-3" />
-                    </div>
-                    <div className="font-semibold text-white/90 group-hover:text-white">{next.title}</div>
-                  </Link>
-                )}
-              </div>
             )}
-
-            {/* Related */}
-            {related.length > 0 && (
-              <div>
-                <p className="mb-3 mt-6 text-xs font-semibold tracking-widest text-white/40">
-                  RELATED ARTICLES
-                </p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {related.map((p, idx) => (
-                    <BlogCard key={p.slug} post={p} delay={idx * 0.05} />
-                  ))}
+            {next && (
+              <Link
+                href={`/blog/${next.slug}`}
+                className="group rounded-2xl border border-border bg-card p-5 text-right transition-colors hover:border-foreground/30 sm:col-start-2"
+              >
+                <div className="mb-1 flex items-center justify-end gap-1 text-xs text-muted-foreground">
+                  Newer <ArrowRight className="h-3 w-3" />
                 </div>
-              </div>
+                <div className="font-medium text-foreground/90 group-hover:text-foreground">{next.title}</div>
+              </Link>
             )}
           </div>
-        </div>
-      </section>
-    </main>
+        )}
+
+        {/* Related */}
+        {related.length > 0 && (
+          <div className="mt-14">
+            <p className="mb-3 text-xs font-semibold tracking-widest text-muted-foreground">
+              RELATED ARTICLES
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {related.map((p, idx) => (
+                <BlogCard key={p.slug} post={p} delay={idx * 0.05} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </article>
   )
 }

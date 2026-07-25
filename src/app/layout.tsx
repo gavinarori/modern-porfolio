@@ -1,7 +1,11 @@
+
 import type { Metadata } from "next"
 import { Inter, Fraunces } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "../components/theme-provider"
+import { Nav } from "../components/nav"
+import { ScrollProgress } from "../components/scroll-progress"
+import { Footer } from "../components/footer"
 import { personal } from "../data/portfolio-data"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
@@ -23,7 +27,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${fraunces.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
+          <ScrollProgress />
+          <Nav />
+          <main>{children}</main>
+          <Footer />
         </ThemeProvider>
       </body>
     </html>

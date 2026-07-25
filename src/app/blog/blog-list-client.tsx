@@ -23,23 +23,25 @@ export default function BlogListClient({
       {tags.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-2">
           <button
+            type="button"
             onClick={() => setActiveTag(null)}
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
               activeTag === null
-                ? "border-white/20 bg-white text-neutral-950"
-                : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                ? "border-foreground bg-foreground text-background"
+                : "border-border bg-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
             All
           </button>
           {tags.map((tag) => (
             <button
+              type="button"
               key={tag}
               onClick={() => setActiveTag(tag)}
               className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                 activeTag === tag
-                  ? "border-white/20 bg-white text-neutral-950"
-                  : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-transparent text-muted-foreground hover:bg-muted"
               }`}
             >
               {tag}
@@ -49,7 +51,7 @@ export default function BlogListClient({
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-3xl border border-white/10 bg-neutral-900/60 p-10 text-center text-white/50">
+        <div className="rounded-2xl border border-border bg-card p-10 text-center text-muted-foreground">
           No articles tagged &ldquo;{activeTag}&rdquo; yet.
         </div>
       ) : (
