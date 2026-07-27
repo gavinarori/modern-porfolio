@@ -4,8 +4,8 @@ import { useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { ArrowDown, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
-import { personal, projects, type Project } from "../data/portfolio-data"
+import { ArrowDown, ArrowRight, ChevronLeft, ChevronRight, BookOpen } from "lucide-react"
+import { personal, projects, featuredBlog, type Project } from "../data/portfolio-data"
 
 const container = {
   hidden: {},
@@ -195,6 +195,38 @@ export function Hero() {
           </motion.div>
         )}
 
+        {/* Featured Blog */}
+        {featuredBlog && (
+          <motion.div variants={item} className="mt-10">
+            <p className="mb-3 text-sm tracking-widest text-muted-foreground">FEATURED ARTICLE</p>
+            <Link
+              href={`/writing/${featuredBlog.slug}`}
+              className="group block rounded-xl border border-border bg-card/50 p-6 transition-all hover:border-accent/60 hover:bg-card"
+            >
+              <div className="flex items-start gap-4">
+                <div className="mt-0.5 rounded-lg bg-accent/10 p-2 text-accent">
+                  <BookOpen className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold tracking-widest text-muted-foreground mb-1">
+                    {featuredBlog.category}
+                  </p>
+                  <h3 className="font-serif text-xl leading-snug tracking-tight text-foreground group-hover:text-accent transition-colors">
+                    {featuredBlog.title}
+                  </h3>
+                  <p className="mt-2 text-sm text-foreground/70 line-clamp-2">
+                    {featuredBlog.description}
+                  </p>
+                  <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{featuredBlog.readTime} min read</span>
+                    <span className="text-foreground/20">•</span>
+                    <span className="text-accent">Read article →</span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          </motion.div>
+        )}
 
         {/* Projects overview */}
         {featuredProjects.length > 0 && (

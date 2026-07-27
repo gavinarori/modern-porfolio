@@ -99,7 +99,7 @@ export const experience: Experience[] = [
   },
 ]
 
-export type ProjectCategory = "frontend" | "fullstack" | "staff"
+export type ProjectCategory = "frontend" | "fullstack" | "staff" | "architecture"
 
 export type Project = {
   id: string
@@ -117,6 +117,14 @@ export type Project = {
     impact: string
     learnings: string
   }
+}
+
+export type FeaturedBlog = {
+  slug: string
+  title: string
+  description: string
+  readTime: number
+  category: string
 }
 
 export const projects: Project[] = [
@@ -279,17 +287,85 @@ export const projects: Project[] = [
     },
   },
 
+  {
+    id: "websocket-architecture",
+    title: "WebSocket Architecture for High-Scale Systems",
+    description:
+      "Deep dive into designing real-time communication systems at scale — handling connection management, message routing, and failover patterns for millions of concurrent users.",
+    category: "architecture",
+    image:
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=1600&auto=format&fit=crop",
+    tags: ["System Design", "WebSockets", "Scalability", "Real-time Systems", "Architecture"],
+    githubUrl: "https://github.com/placeholder/websocket-architecture",
+    caseStudy: {
+      problem:
+        "Building real-time systems requires understanding how connections fail, how to route messages efficiently, and how to maintain state across distributed servers without losing consistency.",
+      approach:
+        "Explored connection pooling strategies, message queue patterns with Redis, graceful degradation, connection state management, and load balancing approaches. Covered pub/sub patterns, horizontal scaling, and failover mechanisms.",
+      impact:
+        "A comprehensive guide to architecting WebSocket systems that remain responsive and reliable even as user concurrency grows from thousands to millions.",
+      learnings:
+        "Real-time systems are constraint problems — you optimize for latency or consistency depending on your use case, and that choice drives every architectural decision that follows.",
+    },
+  },
+
+  {
+    id: "distributed-data-pipeline",
+    title: "Distributed Data Pipeline with Spark and Kafka",
+    description:
+      "Building fault-tolerant, high-throughput data pipelines — leveraging Apache Spark for batch processing and Kafka for real-time streaming, with practical patterns for production systems.",
+    category: "architecture",
+    image:
+      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1600&auto=format&fit=crop",
+    tags: ["Spark", "Kafka", "Data Engineering", "Distributed Systems", "Pipeline Architecture"],
+    githubUrl: "https://github.com/placeholder/spark-kafka-pipeline",
+    caseStudy: {
+      problem:
+        "Processing large volumes of data reliably requires handling failures gracefully, scaling horizontally, and maintaining consistency across distributed nodes — Spark and Kafka each solve part of that puzzle.",
+      approach:
+        "Designed end-to-end pipelines combining Kafka for ingestion, Spark for transformation, and stateful processing patterns. Covered micro-batch semantics, exactly-once processing guarantees, and practical debugging.",
+      impact:
+        "A reference architecture for building pipelines that ingest terabytes of data daily while providing strong consistency semantics and efficient resource utilization.",
+      learnings:
+        "Distributed systems are harder to debug than they are to design — the value is in knowing where failures hide and what to instrument before they happen.",
+    },
+  },
+
+  {
+    id: "distributed-id-generation",
+    title: "Distributed Unique ID Generation Without Coordination",
+    description:
+      "Techniques for generating globally unique IDs in a distributed system without requiring central coordination — exploring Snowflake-like algorithms, ULIDs, and their tradeoffs.",
+    category: "architecture",
+    image:
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1600&auto=format&fit=crop",
+    tags: ["Distributed Systems", "ID Generation", "System Design", "Algorithms", "Performance"],
+    githubUrl: "https://github.com/placeholder/distributed-id-generation",
+    caseStudy: {
+      problem:
+        "Assigning unique IDs at scale without a central bottleneck requires understanding timestamp precision, clock skew, node coordination, and collision probability across thousands of machines.",
+      approach:
+        "Analyzed Snowflake IDs (timestamp + machine ID + sequence), ULIDs (sortable, collision-resistant), and custom hybrid approaches. Covered clock synchronization challenges, bit allocation strategies, and performance characteristics.",
+      impact:
+        "Practical guidance for choosing or building ID generation strategies that scale from hundreds to millions of IDs per second across geographically distributed systems.",
+      learnings:
+        "ID generation seems trivial until you add distribution — then it becomes a study in how many problems flow from a single decision about what bits mean what.",
+    },
+  },
+
 ]
 
 export type SkillGroup = {
   group: string
   items: string[]
+  layout?: "round"
 }
 
 export const skills: SkillGroup[] = [
   {
     group: "Languages",
-    items: ["JavaScript (ES6+)", "TypeScript"],
+    items: ["JavaScript (ES6+)", "TypeScript", "Scala", "C#", ".NET"],
+    layout: "round",
   },
   {
     group: "Frontend",
@@ -297,7 +373,7 @@ export const skills: SkillGroup[] = [
   },
   {
     group: "Backend",
-    items: ["Node.js", "Express.js", "REST APIs"],
+    items: ["Node.js", "Express.js", "REST APIs", "ASP.NET Core"],
   },
   {
     group: "Databases & ORM",
@@ -307,13 +383,24 @@ export const skills: SkillGroup[] = [
     group: "System Architecture & Design",
     items: [
       "Microservices",
+      "Distributed Systems",
+      "WebSocket Architecture",
+      "Real-time Data Pipelines",
+      "Scalable ID Generation",
       "Role-Based Access Control (RBAC)",
       "Multi-tenant Architecture",
       "Real-Time Systems",
       "API Design Patterns",
       "Scalable System Design",
       "Component-Driven Architecture",
+      "Pub/Sub Patterns",
+      "Event-Driven Architecture",
     ],
+    layout: "round",
+  },
+  {
+    group: "Data & Streaming",
+    items: ["Apache Spark", "Apache Kafka", "Data Engineering", "ETL Pipelines", "Stream Processing"],
   },
   {
     group: "Testing & CI/CD",
@@ -361,3 +448,12 @@ export const testimonials: Testimonial[] = [
     role: "Product Manager at BusinessHub",
   },
 ]
+
+export const featuredBlog: FeaturedBlog = {
+  slug: "websocket-architecture",
+  title: "WebSocket Architecture for High-Scale Systems",
+  description:
+    "Deep dive into designing real-time communication systems at scale — handling connection management, message routing, and failover patterns for millions of concurrent users.",
+  readTime: 12,
+  category: "System Design",
+}
