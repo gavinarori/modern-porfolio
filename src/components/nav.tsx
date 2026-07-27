@@ -8,7 +8,6 @@ import { ThemeToggle } from "./theme-toggle"
 import { personal } from "../data/portfolio-data"
 
 const LINKS = [
-  { href: "/about", label: "About" },
   { href: "/experience", label: "Experience" },
   { href: "/projects", label: "Projects" },
   { href: "/blog", label: "Writing" },
