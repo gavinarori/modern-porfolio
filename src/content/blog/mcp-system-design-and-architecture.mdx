@@ -1,0 +1,415 @@
+---
+title: "Designing an MCP Server for Real Traffic: A System Architecture Walkthrough"
+description: "How we built an MCP server that holds conversation history, survives load, and authenticates real users — and the bugs that taught us why each piece exists."
+date: "2026-08-06"
+tags: ["mcp", "system-design", "typescript", "oauth", "architecture"]
+---
+
+# Designing an MCP Server for Real Traffic
+
+## The problem
+
+The Model Context Protocol gives an AI host — Claude Desktop, an IDE, a custom
+agent — a standard way to talk to external tools and data. Every getting-started
+guide shows you the same thing: a single server process, a stdio pipe, one
+client, one conversation. That version takes about twenty minutes to build,
+and it teaches you nothing about what happens the moment a second user shows up.
+
+The real question isn't "how do I expose a tool to an LLM." It's:
+
+- What happens when a user closes their laptop mid-conversation and comes back
+  tomorrow — does the server remember them?
+- What happens when 25 people hit the server in the same second?
+- What happens when the process restarts — does every open conversation just
+  vanish?
+- Who's allowed to call this tool at all, and how do they prove it?
+- If one server isn't enough, how do you run three of them without them
+  stepping on each other?
+
+None of this is exotic. It's the same list any backend service has to answer.
+MCP doesn't get a pass just because the client happens to be a language model
+instead of a browser. This article walks through a server we built — in
+TypeScript, layer by layer — that answers all five questions, and more
+usefully, the mistakes we made building it, because the mistakes are where the
+actual design constraints reveal themselves.
+
+## The shape of the system
+
+At a high level, there are four concerns, and the entire project is really
+about keeping them *separate*:
+
+1. **The MCP protocol layer** — tool registration, the JSON-RPC handshake,
+   the transport. This is what talks to the client.
+2. **Application state** — the actual conversation: who said what, in what
+   order, tied to a `session_id`.
+3. **Identity** — who is allowed to call the tool, enforced via OAuth 2.1.
+4. **Distribution** — running more than one instance of this thing, and a
+   load balancer deciding where a request goes.
+
+<svg viewBox="0 0 720 460" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="System architecture: client through load balancer to server pool, identity, and state">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#52606d" />
+    </marker>
+  </defs>
+
+  <rect x="290" y="10" width="140" height="46" rx="10" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="360" y="33" textAnchor="middle" fontFamily="sans-serif" fontSize="15" fontWeight="600" fill="#1f2933">MCP Client</text>
+  <text x="360" y="49" textAnchor="middle" fontFamily="sans-serif" fontSize="12" fill="#52606d">Claude / custom agent</text>
+  <line x1="360" y1="56" x2="360" y2="90" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+  <text x="375" y="76" fontFamily="sans-serif" fontSize="12" fill="#52606d">Bearer token</text>
+
+  <rect x="260" y="90" width="200" height="46" rx="10" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="360" y="113" textAnchor="middle" fontFamily="sans-serif" fontSize="15" fontWeight="600" fill="#1f2933">Load Balancer</text>
+  <text x="360" y="129" textAnchor="middle" fontFamily="sans-serif" fontSize="12" fill="#52606d">health-checked reverse proxy</text>
+  <line x1="330" y1="136" x2="180" y2="180" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+  <line x1="360" y1="136" x2="360" y2="180" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+  <line x1="390" y1="136" x2="540" y2="180" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+
+  <rect x="90" y="180" width="540" height="90" rx="12" fill="none" stroke="#9aa5b1" strokeWidth="1" strokeDasharray="4 3" />
+  <text x="105" y="196" fontFamily="sans-serif" fontSize="12" fontWeight="600" letterSpacing="0.05em" fill="#7b8794">SERVER POOL</text>
+  <rect x="110" y="205" width="140" height="46" rx="10" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="180" y="233" textAnchor="middle" fontFamily="sans-serif" fontSize="15" fontWeight="600" fill="#1f2933">Instance A</text>
+  <rect x="290" y="205" width="140" height="46" rx="10" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="360" y="233" textAnchor="middle" fontFamily="sans-serif" fontSize="15" fontWeight="600" fill="#1f2933">Instance B</text>
+  <rect x="470" y="205" width="140" height="46" rx="10" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="540" y="233" textAnchor="middle" fontFamily="sans-serif" fontSize="15" fontWeight="600" fill="#1f2933">Instance C</text>
+
+  <line x1="180" y1="251" x2="180" y2="300" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+  <line x1="360" y1="251" x2="270" y2="300" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+  <line x1="540" y1="251" x2="620" y2="330" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+  <line x1="180" y1="251" x2="360" y2="330" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+  <line x1="540" y1="251" x2="450" y2="330" stroke="#52606d" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+
+  <rect x="90" y="300" width="200" height="50" rx="10" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="190" y="322" textAnchor="middle" fontFamily="sans-serif" fontSize="15" fontWeight="600" fill="#1f2933">OAuth 2.1</text>
+  <text x="190" y="339" textAnchor="middle" fontFamily="sans-serif" fontSize="12" fill="#52606d">Authorization Server</text>
+  <text x="105" y="365" fontFamily="sans-serif" fontSize="12" fill="#52606d">verify token / scope</text>
+
+  <rect x="330" y="300" width="300" height="90" rx="12" fill="none" stroke="#9aa5b1" strokeWidth="1" strokeDasharray="4 3" />
+  <text x="345" y="316" fontFamily="sans-serif" fontSize="12" fontWeight="600" letterSpacing="0.05em" fill="#7b8794">EXTERNALIZED STATE</text>
+  <rect x="345" y="325" width="130" height="50" rx="10" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="410" y="347" textAnchor="middle" fontFamily="sans-serif" fontSize="15" fontWeight="600" fill="#1f2933">Session Cache</text>
+  <text x="410" y="364" textAnchor="middle" fontFamily="sans-serif" fontSize="12" fill="#52606d">Redis</text>
+  <rect x="485" y="325" width="130" height="50" rx="10" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="550" y="347" textAnchor="middle" fontFamily="sans-serif" fontSize="15" fontWeight="600" fill="#1f2933">History Store</text>
+  <text x="550" y="364" textAnchor="middle" fontFamily="sans-serif" fontSize="12" fill="#52606d">Postgres</text>
+</svg>
+
+The single most important design decision in the whole system is this: **the
+process running the MCP server should not be where your data lives.** Everything
+that needs to survive a restart, a redeploy, or a scale-out event has to live
+somewhere else. The server process becomes disposable. That one sentence is
+the reason every file in this project exists.
+
+## Layer 1: separating "hot" state from "durable" state
+
+A conversation has two different lifetimes. The last few turns need to be
+read on every single request — that has to be fast. The full history needs
+to survive forever — that has to be durable. Trying to serve both needs from
+one store is how you end up with either a slow cache or a lossy database.
+
+So there are two stores, deliberately kept behind identical interfaces:
+
+```typescript
+// session-store.ts — stands in for Redis
+export class SessionStore {
+  async get(sessionId: string): Promise<SessionState | null>
+  async create(sessionId: string): Promise<SessionState>
+  async update(sessionId: string, patch: Partial<SessionState>): Promise<void>
+}
+```
+
+```typescript
+// history-store.ts — stands in for Postgres
+export class HistoryStore {
+  async append(sessionId, role, content, idempotencyKey): Promise<Turn | null>
+  async getHistory(sessionId: string, limit?: number): Promise<Turn[]>
+  async countTurns(sessionId: string): Promise<number>
+}
+```
+
+In the demo both are backed by an in-memory `Map`. That's intentional, not
+lazy — the entire point is that the *method signatures* are what the rest of
+the system depends on, not the storage engine behind them. Swap the internals
+for `ioredis` and `pg` later and nothing that calls these two classes needs to
+change. This is the same reasoning behind a repository pattern in any backend
+codebase; MCP doesn't change the argument.
+
+Two details in `HistoryStore` matter more than they look:
+
+- **Idempotency keys.** Every `append()` call takes one. At scale, retries
+  happen — a client times out and resends a request that actually succeeded
+  server-side. Without an idempotency guard, that retry writes the same turn
+  twice, and now your conversation history is corrupted. The guard makes a
+  retried write a safe no-op instead of a duplicate.
+- **A running summary field on `SessionState`.** Once a conversation passes a
+  turn threshold, older turns collapse into a summary instead of being replayed
+  verbatim on every call. This is the same reason long support tickets get
+  summarized before a new agent picks them up — replaying the entire raw
+  transcript into context on every turn gets expensive and eventually exceeds
+  what the model can usefully attend to.
+
+## Layer 2: the tool itself, and two sessions that look like one
+
+The MCP server exposes a single tool, `chat`, and its logic is a five-step
+resolve-append-generate-append-update cycle:
+
+```typescript
+async ({ session_id, message, idempotency_key }) => {
+  // 1. Resolve session — cache first, rebuild from durable history on a miss
+  let session = session_id ? await sessionStore.get(session_id) : null;
+  if (!session_id) {
+    session_id = `sess_${randomId()}`;
+    session = await sessionStore.create(session_id);
+  } else if (!session) {
+    // Cache miss: instance restarted, TTL expired, or a different
+    // instance created this session. Rebuild from the durable store.
+    const priorTurns = await historyStore.getHistory(session_id);
+    session = await sessionStore.create(session_id);
+    await sessionStore.update(session_id, { turnCount: priorTurns.length });
+  }
+
+  // 2. Durably persist the user's turn
+  await historyStore.append(session_id, "user", message, idempotency_key);
+
+  // 3. Load recent context
+  const recentTurns = await historyStore.getHistory(session_id, 20);
+
+  // 4. Generate a reply (a real model call, in production)
+  const reply = generateReply(session, recentTurns, message);
+  await historyStore.append(session_id, "assistant", reply, `${idempotency_key}-reply`);
+
+  // 5. Update session state, summarizing if history has gotten long
+  await sessionStore.update(session_id, { turnCount, runningSummary });
+
+  return { content: [{ type: "text", text: JSON.stringify({ session_id, reply }) }] };
+}
+```
+
+Step 1's `else if (!session)` branch is the whole reason `HistoryStore`
+exists as a separate thing from `SessionStore` rather than one combined
+store. A cache miss on a valid session isn't an error — it's expected the
+moment you have more than one server instance. The durable store is what
+lets the *next* instance pick up a conversation the *first* instance started.
+
+Here's the part that isn't obvious until you actually build the transport
+layer: **there are two completely different things both called "session,"**
+and conflating them is the single easiest mistake to make in this whole
+system.
+
+| | MCP protocol session | Application conversation session |
+|---|---|---|
+| What it is | The JSON-RPC transport's own handshake bookkeeping (`Mcp-Session-Id` header) | Your `session_id` in the tool's arguments |
+| Where it lives | An in-memory `Map` in the server process | `SessionStore` / `HistoryStore` |
+| What happens on restart | Gone — client just reconnects | Nothing — it was never in this process |
+| Who defines it | The MCP SDK's transport layer | You, in your tool's schema |
+
+We found this the hard way. The first version of the server created a brand
+new transport object per HTTP request, reasoning that "stateless is good, so
+let's make everything stateless." That broke the very first test:
+
+```
+StreamableHTTPError: Bad Request: Server not initialized
+```
+
+The MCP protocol's `initialize` handshake and the requests that follow it
+have to hit the *same* transport object — that's protocol-level session
+bookkeeping, not application data, and it's not optional. The fix was a
+`Map<protocolSessionId, transport>` kept alive in the server process, alongside
+— and clearly separated from — the externalized conversation state. Losing
+that map on a restart just means open connections have to reconnect. It never
+touches the conversation itself, because the conversation was never stored
+there.
+
+## Layer 3: proving who's calling
+
+A tool that holds conversation history for anonymous callers isn't a real
+system, it's a demo. Real traffic needs identity, and MCP's answer is OAuth
+2.1 with PKCE and dynamic client registration — the same mechanism a mobile
+app uses to get access to your calendar, applied to an AI client getting
+access to a tool server.
+
+The flow has two very different frequencies, and getting them backwards is
+the second bug we hit:
+
+<svg viewBox="0 0 720 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OAuth sequence: registration once per app, authorization once per login, token on every call">
+  <defs>
+    <marker id="arrowhead2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="#52606d" />
+    </marker>
+  </defs>
+
+  <rect x="20" y="10" width="120" height="34" rx="8" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="80" y="31" textAnchor="middle" fontFamily="sans-serif" fontSize="13" fontWeight="600" fill="#1f2933">Client app</text>
+  <rect x="210" y="10" width="150" height="34" rx="8" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="285" y="31" textAnchor="middle" fontFamily="sans-serif" fontSize="13" fontWeight="600" fill="#1f2933">Authorization Server</text>
+  <rect x="440" y="10" width="100" height="34" rx="8" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="490" y="31" textAnchor="middle" fontFamily="sans-serif" fontSize="13" fontWeight="600" fill="#1f2933">User</text>
+  <rect x="610" y="10" width="100" height="34" rx="8" fill="#f8f9fb" stroke="#cbd2d9" strokeWidth="1.5" />
+  <text x="660" y="31" textAnchor="middle" fontFamily="sans-serif" fontSize="13" fontWeight="600" fill="#1f2933">MCP Server</text>
+
+  <line x1="80" y1="44" x2="80" y2="410" stroke="#d9dfe4" strokeWidth="1.5" />
+  <line x1="285" y1="44" x2="285" y2="410" stroke="#d9dfe4" strokeWidth="1.5" />
+  <line x1="490" y1="44" x2="490" y2="410" stroke="#d9dfe4" strokeWidth="1.5" />
+  <line x1="660" y1="44" x2="660" y2="410" stroke="#d9dfe4" strokeWidth="1.5" />
+
+  <rect x="10" y="52" width="360" height="46" fill="#f4f6f8" />
+  <text x="20" y="66" fontFamily="sans-serif" fontSize="11" fontWeight="600" letterSpacing="0.04em" fill="#7b8794">ONCE PER APPLICATION</text>
+  <line x1="80" y1="86" x2="285" y2="86" stroke="#52606d" strokeWidth="1.4" markerEnd="url(#arrowhead2)" />
+  <text x="90" y="80" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">POST /register (dynamic client registration)</text>
+  <line x1="285" y1="96" x2="80" y2="96" stroke="#52606d" strokeWidth="1.4" strokeDasharray="4 3" markerEnd="url(#arrowhead2)" />
+  <text x="90" y="112" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">client_id</text>
+
+  <rect x="10" y="130" width="700" height="140" fill="#f4f6f8" />
+  <text x="20" y="146" fontFamily="sans-serif" fontSize="11" fontWeight="600" letterSpacing="0.04em" fill="#7b8794">ONCE PER USER LOGIN</text>
+  <line x1="80" y1="168" x2="490" y2="168" stroke="#52606d" strokeWidth="1.4" markerEnd="url(#arrowhead2)" />
+  <text x="150" y="162" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">redirect to /authorize (+ PKCE challenge)</text>
+  <line x1="490" y1="190" x2="285" y2="190" stroke="#52606d" strokeWidth="1.4" markerEnd="url(#arrowhead2)" />
+  <text x="330" y="184" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">approve</text>
+  <line x1="285" y1="212" x2="80" y2="212" stroke="#52606d" strokeWidth="1.4" strokeDasharray="4 3" markerEnd="url(#arrowhead2)" />
+  <text x="90" y="228" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">redirect back with authorization code</text>
+  <line x1="80" y1="246" x2="285" y2="246" stroke="#52606d" strokeWidth="1.4" markerEnd="url(#arrowhead2)" />
+  <text x="90" y="240" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">POST /token (code + PKCE verifier)</text>
+  <line x1="285" y1="258" x2="80" y2="258" stroke="#52606d" strokeWidth="1.4" strokeDasharray="4 3" markerEnd="url(#arrowhead2)" />
+  <text x="90" y="272" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">access_token</text>
+
+  <rect x="10" y="300" width="700" height="60" fill="#f4f6f8" />
+  <text x="20" y="316" fontFamily="sans-serif" fontSize="11" fontWeight="600" letterSpacing="0.04em" fill="#7b8794">EVERY TOOL CALL</text>
+  <line x1="80" y1="338" x2="660" y2="338" stroke="#52606d" strokeWidth="1.4" markerEnd="url(#arrowhead2)" />
+  <text x="230" y="332" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">POST /mcp (Authorization: Bearer token)</text>
+  <line x1="660" y1="350" x2="80" y2="350" stroke="#52606d" strokeWidth="1.4" strokeDasharray="4 3" markerEnd="url(#arrowhead2)" />
+  <text x="230" y="366" fontFamily="sans-serif" fontSize="11.5" fill="#323f4b">tool result (after verifying token + scope)</text>
+</svg>
+
+Registration is an app-level event — it happens once, when the client
+software is first configured. Authorization is a per-user event — it happens
+at login. Our first draft of the traffic simulator got this wrong: it
+registered a brand-new OAuth client for every simulated user, as if every
+single login were also a fresh app install. Twenty-five simulated users in a
+burst test meant twenty-five registrations in a few hundred milliseconds,
+which tripped the authorization server's own rate limiter (20 registrations/hour
+by default — a real, deliberate anti-abuse control). The fix wasn't to raise
+the limit. It was to fix the simulation: register the client once, then run
+25 independent authorize→token exchanges against that one `client_id`, which
+is what actually happens when 25 people log into the same app.
+
+The server side implements the standard `OAuthServerProvider` interface —
+`authorize`, `challengeForAuthorizationCode`, `exchangeAuthorizationCode`,
+`exchangeRefreshToken`, `verifyAccessToken`, `revokeToken` — all of it backed
+by in-memory maps for the demo, all of it following the same swap-later
+principle as the session/history stores. The one piece that's a deliberate,
+clearly-commented shortcut: `authorize()` auto-approves as a single demo user
+instead of rendering a real login screen. That's the one thing standing
+between this and a production authorization server — everything else,
+including PKCE verification and token expiry, is the real protocol.
+
+## Layer 4: more than one server, and the bug that explains the whole architecture
+
+Everything above works on one instance. The moment you put a load balancer in
+front of three instances, a new failure mode appears that doesn't exist with
+one: **a token minted by instance A doesn't mean anything to instance B.**
+
+We built the load balancer with what seemed like a reasonable routing
+strategy: hash the bearer token to pick a backend, so requests from the same
+authenticated user consistently land on the same instance. It compiled, it
+looked correct, and it failed on the very first real request:
+
+```
+{"error":"invalid_token","error_description":"Invalid access token"}
+```
+
+The bug: the OAuth handshake (`/register`, `/authorize`, `/token`) happens
+*before* a client has a token, so those requests were routed by client IP.
+The subsequent authenticated `/mcp` calls were routed by a hash of the token
+itself. **Different routing key, same client, possibly different backend** —
+and a token minted on instance A means nothing to instance B, because the
+token store is still an in-memory `Map` per process, exactly like the session
+store. The fix was to route everything — the handshake and the authenticated
+calls alike — by the same key (client IP), so one client's entire lifecycle
+consistently lands on one instance.
+
+That fix is correct and it's also, deliberately, a temporary patch, and the
+load balancer's source says so directly:
+
+```typescript
+/**
+ * A naive round-robin balancer would break both: a token minted by
+ * instance A won't verify on instance B, and an MCP protocol session
+ * opened on A won't be found on B. So THIS load balancer sticks every
+ * client (by IP) to one backend for its whole lifecycle, as a stand-in
+ * for real horizontal scaling. Once Redis + Postgres are wired in for
+ * app state, and OAuth tokens are likewise moved to a shared store, you
+ * can delete the stickiness and go pure round-robin — that's the whole
+ * point of externalizing state.
+ */
+```
+
+This is the cleanest possible demonstration of the thesis from the top of
+this article. The load balancer needs sticky routing *specifically because*
+two pieces of state — OAuth tokens and the MCP protocol session map — still
+live inside the process instead of in a shared store. The moment those move
+to Redis, the stickiness requirement doesn't get worked around, it gets
+deleted, because the reason for it stops existing.
+
+## How this maps to a real scenario
+
+Picture a support chatbot embedded in a SaaS product. A customer opens the
+widget, asks a question, gets an answer, closes the tab. Two days later they
+reopen the same conversation from their phone. Meanwhile a thousand other
+customers are doing the same thing, at the same time, across a release that
+just autoscaled the backend from three pods to eight.
+
+Every piece of this system maps directly onto that scenario:
+
+- **The customer's identity** — OAuth token, obtained once at login,
+  reused across every message in the widget session.
+- **"Reopen the same conversation from their phone"** — the `session_id`
+  round-trips through the client and is resolved against the durable history
+  store, not tied to whichever pod happened to serve the first message.
+- **The release that autoscales three pods to eight** — new pods coming
+  online with zero conversation state of their own is fine, because
+  conversation state was never pod-local. It's the exact cache-miss branch in
+  the `chat` tool: rebuild session state from durable history the first time
+  a new pod sees an existing session.
+- **A thousand customers at once** — the load balancer spreading requests
+  across the pool, backed by health checks so a pod that's struggling stops
+  receiving new traffic.
+- **Idempotency keys** — the thing that keeps a flaky mobile connection's
+  automatic retry from duplicating a customer's message in the transcript
+  their human agent reads later.
+
+None of this is speculative extrapolation — it's the direct behavior of the
+code above, exercised with an actual MCP client, an actual OAuth flow, and
+an actual three-instance cluster behind an actual reverse proxy, not a diagram
+of intentions. A 25-request concurrent burst, one multi-turn conversation
+proving continuity across calls, one unauthenticated request correctly
+rejected, one forged token correctly rejected — all run and passing before
+any of this was written up.
+
+## What's still a stand-in, on purpose
+
+Being direct about the remaining gaps matters more than pretending they don't
+exist:
+
+1. **Session and history stores are in-memory Maps**, not Redis/Postgres.
+   The interface is final; the backing implementation is a placeholder by
+   design.
+2. **OAuth client/code/token storage is in-memory too**, for the same
+   reason — and it's the direct cause of the load balancer needing IP
+   stickiness at all.
+3. **The `authorize()` step auto-approves** instead of showing a real login
+   screen. This is the one piece that's a genuine shortcut rather than a
+   swappable implementation detail, and it's the first thing to replace
+   before any of this sees real users.
+4. **The MCP protocol session map is inherently per-process** — this one
+   doesn't go away with a database swap. It's a property of the Streamable
+   HTTP transport itself, and production deployments handle it either with
+   sticky routing at the protocol layer or by having clients tolerate
+   reconnect-per-request.
+
+Each of these is named explicitly in the code as a comment at the point where
+it matters, rather than left as an implicit assumption — because the
+difference between "a stand-in we know about" and "a bug we haven't found
+yet" is entirely in whether it's written down next to the line of code
+responsible for it.
