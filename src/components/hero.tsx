@@ -136,7 +136,7 @@ export function Hero() {
           <motion.div variants={item} className="mt-10">
             <p className="mb-3 text-sm tracking-widest text-muted-foreground">FEATURED ARTICLE</p>
             <Link
-              href={`/blog/${featuredBlog.slug}`}
+              href={`/blog`}
               className="group block rounded-xl border border-border bg-card/50 p-6 transition-all hover:border-accent/60 hover:bg-card"
             >
               <div className="flex items-start gap-4">
