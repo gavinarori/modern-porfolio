@@ -127,6 +127,22 @@ export type FeaturedBlog = {
   category: string
 }
 
+export type YoutubeVideo = {
+  videoId: string
+  title: string
+}
+
+export const youtubeVideos: YoutubeVideo[] = [
+  {
+    videoId: "bA9SorKvpXE",
+    title: "Database Sharding — The Technique That Lets Databases Scale",
+  },
+  {
+    videoId: "gyUTU5SVsXs",
+    title: "I Built an MCP Server That Survives Real Traffic (TypeScript)",
+  },
+]
+
 export const projects: Project[] = [
     {
     id: "bmw-m3-concept",
@@ -457,4 +473,3 @@ export const featuredBlog: FeaturedBlog = {
   readTime: 12,
   category: "System Design",
 }
- 

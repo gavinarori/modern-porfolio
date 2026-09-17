@@ -37,6 +37,21 @@ export type EndpointGroup = {
   endpoints: Endpoint[]
 }
 
+// ── Additive types for architecture / trade-off / local-setup prose ──
+// Optional so existing projects (Ledger, Signal) don't need to supply them.
+
+export type ArchitectureSection = {
+  heading: string
+  body: string
+  bullets?: string[]
+}
+
+export type SetupStep = {
+  title: string
+  description: string
+  command?: string
+}
+
 export type DocsProject = {
   slug: string
   name: string
@@ -48,100 +63,158 @@ export type DocsProject = {
     header: string
     description: string
   }
+  githubUrl?: string
+  architecture?: {
+    intro: string
+    sections: ArchitectureSection[]
+    tradeoffs: string[]
+  }
+  localSetup?: {
+    intro?: string
+    steps: SetupStep[]
+  }
   groups: EndpointGroup[]
 }
 
 export const docsProjects: DocsProject[] = [
 
+  // ─────────────────────────────────────────────────────────────
+  // Ticketing (real project — local only, no hosted deployment)
+  // ─────────────────────────────────────────────────────────────
   {
     slug: "ticketing",
-    name: "Arena",
-    tagline: "High-concurrency multi-tenant ticketing API",
-    description: `Arena is a multi-tenant, football-first ticketing platform built in Go for extreme concurrency (50k–200k+ simultaneous users on ticket drops) without ever overselling inventory.
-
-## Architecture overview
-
-Clean layered design:
-
-- **domain** — pure entities + interfaces (no infrastructure imports)
-- **service** — business logic, orchestration, idempotency, inventory rules
-- **repository** — Postgres (source of truth) + Redis implementations of domain interfaces
-- **handler** — chi HTTP, middleware, request/response mapping
-
-Key infrastructure choices:
-
-- **Postgres** — authoritative inventory, orders, tenants, audit log. Row-level locks + CHECK constraints prevent oversell at the database level.
-- **Redis** — short-lived seat holds (distributed locks), waiting-room queues, rate limiting, and hot inventory counters. Holds expire automatically; a background sweep reconciles any drift.
-- **Kafka / Redpanda** — async side-effects (email, webhooks, analytics, audit events). Never blocks the critical purchase path.
-- **Payments** — Stripe + Adyen behind a single PaymentProvider interface so the rest of the system is provider-agnostic.
-- **Tenant isolation** — every query and cache key is scoped by tenant_id. Middleware extracts tenant from the JWT (or API key) and injects it into context; repositories never accept a bare tenant_id from the client.
-
-## Seat-locking algorithm (the critical path)
-
-1. Client requests a hold on specific seats (or a “best available” request).
-2. Service acquires a Redis lock (SET NX EX) for each seat with a short TTL (e.g. 8–12 minutes).
-3. On success, a Postgres transaction creates a hold record and decrements the available counter under row-level lock.
-4. Client receives a hold_id + expiry. Checkout must complete before expiry or the hold is released.
-5. Background worker expires holds and releases inventory if payment never arrives.
-6. Final sale runs in a single Postgres transaction that converts the hold → order + tickets and records an immutable inventory mutation audit row.
-
-Trade-offs made explicit:
-
-- Redis holds give low-latency contention handling at the cost of eventual consistency between Redis and Postgres. The reconciliation job + Postgres constraints close the window.
-- We accept a small amount of “inventory holds that time out” rather than risk overselling. This is the correct trade-off for ticket drops.
-- Kafka is used only for non-critical work; the purchase path itself is synchronous and transactional.
-
-## Local development
-
-1. Clone the repo and copy \`.env.example\` → \`.env\`.
-2. \`docker compose up -d\` (Postgres 16, Redis 7, Redpanda + console, Adminer).
-3. \`make migrate-up\`
-4. \`make run-api\` (or \`go run ./cmd/api\`)
-5. Health: \`curl localhost:8080/healthz\`
-6. Ready (deps): \`curl localhost:8080/readyz\`
-
-All three binaries (\`api\`, \`worker\`, \`migrate\`) share the same config package and fail fast on missing required env vars.
-
-JWT auth is required for all non-health endpoints. Use the provided seed tenant + admin user or create one via the admin endpoints.`,
-    baseUrl: "https://api.arena.tickets/v1",
+    name: "Ticketing Platform",
+    tagline: "Multi-tenant event ticketing backend",
+    description:
+      "A multi-tenant ticketing backend in Go: waiting-room admission, Redis-backed seat holds, transactional order confirmation, and an outbox-pattern email dispatcher. Runs entirely on localhost — no hosted environment.",
+    baseUrl: "http://localhost:8080",
     auth: {
       type: "Bearer JWT",
-      header: "Authorization: Bearer eyJhbGciOiJIUzI1NiIs...",
+      header: "Authorization: Bearer <access_token>",
       description:
-        "All requests (except /healthz and /readyz) require a JWT issued by the auth service. The token contains tenant_id, user_id, and roles. Tenant isolation is enforced in middleware — you cannot access another tenant’s data even if you know the IDs.",
+        "Fan and admin endpoints require a JWT from /auth/login (Authorization: Bearer <token>). Tenant scope is never taken from a header on authenticated calls — it's embedded in the token itself. Public, pre-auth endpoints (event browsing, joining the queue) instead require an X-Tenant-ID header. The one exception is admin bootstrap, which uses a shared X-Bootstrap-Secret instead of a JWT, since it exists to create the very first admin for a tenant.",
+    },
+    githubUrl: "https://github.com/gavinarori/ticketing-backend",
+    architecture: {
+      intro:
+        "Clean layered design — domain (entities + interfaces, no infrastructure imports), service (business logic, transactions, idempotency), repository (Postgres + Redis implementations), handler (chi HTTP + middleware). Two binaries share the same config and domain code: cmd/api serves requests, cmd/worker runs the background tickers.",
+      sections: [
+        {
+          heading: "Data stores",
+          body: "Postgres is the source of truth for tenants, users, venues, events, inventory, orders, and the notification outbox. Redis holds everything short-lived and high-churn.",
+          bullets: [
+            "Postgres — row-level locks + CHECK constraints prevent overselling inventory at the database level, independent of application logic",
+            "Redis — waiting-room queues and seat holds, both with TTLs; a worker sweep reconciles anything that drifts",
+          ],
+        },
+        {
+          heading: "Multi-tenancy",
+          body: "Every query is scoped by tenant_id, but the source of that scope differs by endpoint type.",
+          bullets: [
+            "Authenticated endpoints (fan or admin) — tenant comes from the JWT, never a client-supplied header, so a valid token for tenant A can't be pointed at tenant B's data",
+            "Public endpoints (browsing events, joining the queue before login) — tenant comes from X-Tenant-ID, since there's no token yet to carry it",
+          ],
+        },
+        {
+          heading: "Waiting room & admission",
+          body: "Joining the queue is an HTTP call, but admission out of it deliberately is not.",
+          bullets: [
+            "POST /events/{id}/queue enqueues a fan; GET on the same path reports position and whether they're admitted",
+            "Admission only happens via the worker's ticker (or AdmitNext internally) — there is no HTTP route that jumps the queue",
+            "HoldSeat requires admitted: true first, so cmd/worker has to be running for the purchase path to complete end to end",
+          ],
+        },
+        {
+          heading: "Payments",
+          body: "Stripe integration runs in mock mode whenever STRIPE_SECRET_KEY is left empty, which is the expected local setup.",
+          bullets: [
+            "Mock mode returns deterministic responses instead of calling out to Stripe, so the full authorize → webhook → paid flow is testable with no real keys",
+            "Webhook signatures still have to be computed by the caller: hex(HMAC-SHA256(raw_body, STRIPE_WEBHOOK_SECRET)) — no timestamp prefix, unlike Stripe's real t=...,v1=... format",
+          ],
+        },
+        {
+          heading: "Notifications (outbox pattern)",
+          body: "Order confirmation emails are queued, not sent inline, so a slow or failing email provider can never affect payment confirmation.",
+          bullets: [
+            "ConfirmPayment enqueues a notification row in the same Postgres transaction that marks the order paid — both commit or neither does",
+            "cmd/worker's dispatch loop picks up pending notifications and sends them through a swappable EmailSender (SMTP in real config, a console logger when SMTP_* is unset)",
+          ],
+        },
+      ],
+      tradeoffs: [
+        "Redis holds give low-latency contention handling at the cost of eventual consistency with Postgres — accepted because a hold that times out is a far better failure mode than overselling a seat",
+        "Waiting-room admission is intentionally worker-only with no direct HTTP path, trading a bit of testing convenience for a queue that can't be bypassed",
+        "Mock payment mode trades payment realism for full local testability — the webhook signature still has to be computed correctly, so the integration is exercised, just not against real Stripe",
+        "Notifications are fully decoupled via an outbox table rather than sent synchronously — a stalled email provider can never block or roll back a paid order",
+      ],
+    },
+    localSetup: {
+      intro:
+        "Everything below runs against localhost only. Two terminals are needed: cmd/api serves the endpoints below; cmd/worker handles waiting-room admission and email dispatch, and the purchase path won't complete without it.",
+      steps: [
+        {
+          title: "Start Postgres and Redis",
+          description:
+            "Bring up local infra with Docker, or point the API at your own Postgres/Redis instances via the env vars in the next step.",
+          command: "docker-compose up -d",
+        },
+        {
+          title: "Configure environment",
+          description:
+            "Copy the example env file and fill in DATABASE_URL, REDIS_ADDR, JWT_SECRET, JWT_REFRESH_SECRET, and ADMIN_BOOTSTRAP_SECRET. Leave STRIPE_SECRET_KEY empty to run payments in mock mode — that's the intended local setup. SMTP_* is optional; without it, the worker logs emails to the console instead of sending them.",
+          command: "cp .env.example .env",
+        },
+        {
+          title: "Run migrations",
+          description: "Pulls dependencies and applies every migration up to the current schema.",
+          command: "go mod tidy && make migrate-up",
+        },
+        {
+          title: "Start the API server",
+          description: "This is the only binary that serves HTTP traffic — every endpoint below talks to it.",
+          command: "go run ./cmd/api",
+        },
+        {
+          title: "Start the worker (second terminal)",
+          description:
+            "Runs the waiting-room admission ticker and the notification dispatch loop. Without this running, joining the queue will never flip to admitted: true and paid orders will never send a confirmation email.",
+          command: "go run ./cmd/worker",
+        },
+        {
+          title: "Seed a tenant",
+          description:
+            "There's no endpoint for this yet — it's a direct insert. Keep the returned id; it's the X-Tenant-ID for every public request and the tenant_id for bootstrap.",
+          command:
+            "INSERT INTO tenants (id, slug, name) VALUES (gen_random_uuid(), 'my-club', 'My Club') RETURNING id;",
+        },
+        {
+          title: "Bootstrap the first admin",
+          description:
+            "Uses the shared X-Bootstrap-Secret rather than a JWT, since no admin exists yet to issue one. See Admin Bootstrap below for the full request.",
+        },
+        {
+          title: "Verify",
+          description: "Confirms the API is up and that it can reach Postgres and Redis.",
+          command: "curl localhost:8080/healthz && curl localhost:8080/readyz",
+        },
+      ],
     },
     groups: [
       {
         name: "Health & Status",
-        description: "Liveness and readiness probes used by Kubernetes / load balancers.",
+        description: "No auth required. Used for liveness/readiness checks, not by fans or admins.",
         endpoints: [
           {
             id: "healthz",
             method: "GET",
             path: "/healthz",
             summary: "Liveness probe",
-            description: "Returns 200 if the process is alive. Does not check downstream dependencies.",
+            description: "Returns 200 if the process is alive. Does not check Postgres or Redis.",
             responseExample: `{
   "status": "ok"
 }`,
             codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl https://api.arena.tickets/v1/healthz`,
-              },
-              {
-                label: "JavaScript",
-                language: "javascript",
-                code: `const res = await fetch("https://api.arena.tickets/v1/healthz")
-console.log(await res.json())`,
-              },
-              {
-                label: "Python",
-                language: "python",
-                code: `import requests
-print(requests.get("https://api.arena.tickets/v1/healthz").json())`,
-              },
+              { label: "cURL", language: "bash", code: `curl http://localhost:8080/healthz` },
             ],
           },
           {
@@ -149,7 +222,7 @@ print(requests.get("https://api.arena.tickets/v1/healthz").json())`,
             method: "GET",
             path: "/readyz",
             summary: "Readiness probe",
-            description: "Pings Postgres and Redis. Returns 503 if any critical dependency is unreachable.",
+            description: "Pings Postgres and Redis. Returns 503 if either is unreachable.",
             responseExample: `{
   "status": "ready",
   "checks": {
@@ -158,744 +231,730 @@ print(requests.get("https://api.arena.tickets/v1/healthz").json())`,
   }
 }`,
             codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl https://api.arena.tickets/v1/readyz`,
-              },
+              { label: "cURL", language: "bash", code: `curl http://localhost:8080/readyz` },
             ],
           },
         ],
       },
       {
-        name: "Events",
-        description: "Football matches and other ticketed events. Events belong to a tenant and reference a venue.",
+        name: "Auth",
+        description: "Registration and login are public. Refresh rotates the token pair; the old refresh token is invalidated on use.",
         endpoints: [
           {
-            id: "list-events",
-            method: "GET",
-            path: "/events",
-            summary: "List events",
-            description: "Returns events for the authenticated tenant, newest first. Supports filtering by status and date range.",
+            id: "auth-register",
+            method: "POST",
+            path: "/api/v1/auth/register",
+            summary: "Register a fan",
+            description: "Always creates a fan-role account — there's no role field to set here. Admins are created only via bootstrap.",
             params: [
-              { name: "status", type: "string", in: "query", required: false, description: "Filter: draft | published | on_sale | sold_out | cancelled" },
-              { name: "from", type: "string (ISO 8601)", in: "query", required: false, description: "Events starting on or after this datetime" },
-              { name: "to", type: "string (ISO 8601)", in: "query", required: false, description: "Events starting on or before this datetime" },
-              { name: "limit", type: "integer", in: "query", required: false, description: "Max results (default 20, max 100)" },
-              { name: "cursor", type: "string", in: "query", required: false, description: "Pagination cursor from previous response" },
+              { name: "email", type: "string", in: "body", required: true, description: "Must be unique" },
+              { name: "password", type: "string", in: "body", required: true, description: "Plaintext over the wire, hashed server-side" },
+              { name: "first_name", type: "string", in: "body", required: true, description: "" },
+              { name: "last_name", type: "string", in: "body", required: true, description: "" },
             ],
             responseExample: `{
-  "data": [
-    {
-      "id": "evt_7f3a9c2b",
-      "name": "Arsenal vs Chelsea",
-      "slug": "arsenal-vs-chelsea-2026-04-12",
-      "status": "on_sale",
-      "starts_at": "2026-04-12T15:00:00Z",
-      "venue_id": "ven_1a2b3c",
-      "currency": "GBP",
-      "min_price": 4500,
-      "max_price": 25000,
-      "available": 18420
-    }
-  ],
-  "meta": {
-    "next_cursor": "eyJpZCI6ImV2dF83ZjNhOWMyYiJ9",
-    "has_more": true
+  "data": {
+    "id": "usr_2f1a9c",
+    "email": "fan@example.com",
+    "role": "fan"
   }
 }`,
             codeSamples: [
               {
                 label: "cURL",
                 language: "bash",
-                code: `curl "https://api.arena.tickets/v1/events?status=on_sale&limit=20" \\
-  -H "Authorization: Bearer $TOKEN"`,
+                code: `curl -X POST http://localhost:8080/api/v1/auth/register \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "email": "fan@example.com",
+    "password": "hunter2-but-better",
+    "first_name": "Alex",
+    "last_name": "Morgan"
+  }'`,
+              },
+            ],
+          },
+          {
+            id: "auth-login",
+            method: "POST",
+            path: "/api/v1/auth/login",
+            summary: "Log in",
+            description: "Works for both fan and admin accounts. Returns an access/refresh pair.",
+            params: [
+              { name: "email", type: "string", in: "body", required: true, description: "" },
+              { name: "password", type: "string", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+    "expires_at": "2026-09-17T15:30:00Z"
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{ "email": "fan@example.com", "password": "hunter2-but-better" }'`,
               },
               {
                 label: "JavaScript",
                 language: "javascript",
-                code: `const res = await fetch("https://api.arena.tickets/v1/events?status=on_sale", {
-  headers: { Authorization: \`Bearer \${token}\` },
-})
-const { data, meta } = await res.json()`,
+                code: `const { data } = await fetch("http://localhost:8080/api/v1/auth/login", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, password }),
+}).then((r) => r.json())
+
+const { access_token, refresh_token } = data`,
               },
+            ],
+          },
+          {
+            id: "auth-refresh",
+            method: "POST",
+            path: "/api/v1/auth/refresh",
+            summary: "Refresh the token pair",
+            description: "Exchanges a valid refresh token for a new access/refresh pair. The old refresh token is invalidated immediately.",
+            params: [
+              { name: "refresh_token", type: "string", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+    "expires_at": "2026-09-17T16:30:00Z"
+  }
+}`,
+            codeSamples: [
               {
-                label: "Python",
-                language: "python",
-                code: `res = requests.get(
-    "https://api.arena.tickets/v1/events",
-    params={"status": "on_sale"},
-    headers={"Authorization": f"Bearer {token}"},
-)
-data = res.json()["data"]`,
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/auth/refresh \\
+  -H "Content-Type: application/json" \\
+  -d '{ "refresh_token": "'"$REFRESH_TOKEN"'" }'`,
+              },
+            ],
+          },
+          {
+            id: "auth-logout",
+            method: "POST",
+            path: "/api/v1/auth/logout",
+            summary: "Log out",
+            description: "Invalidates the given refresh token server-side.",
+            params: [
+              { name: "refresh_token", type: "string", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": { "success": true }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/auth/logout \\
+  -H "Content-Type: application/json" \\
+  -d '{ "refresh_token": "'"$REFRESH_TOKEN"'" }'`,
+              },
+            ],
+          },
+          {
+            id: "auth-me",
+            method: "GET",
+            path: "/api/v1/me",
+            summary: "Current user",
+            description: "Returns the identity embedded in the access token.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "Bearer <access_token>" },
+            ],
+            responseExample: `{
+  "data": {
+    "id": "usr_2f1a9c",
+    "email": "fan@example.com",
+    "role": "fan",
+    "tenant_id": "ten_9e2b4f"
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl http://localhost:8080/api/v1/me \\
+  -H "Authorization: Bearer $TOKEN"`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Admin Bootstrap",
+        description: "Shared-secret, not JWT. This is the only way to create the first admin for a tenant — every other admin action requires an admin JWT.",
+        endpoints: [
+          {
+            id: "admin-bootstrap",
+            method: "POST",
+            path: "/api/v1/admin/bootstrap",
+            summary: "Create the first admin for a tenant",
+            description: "Requires the ADMIN_BOOTSTRAP_SECRET configured in .env, not a token. Run this once per tenant, right after seeding it.",
+            params: [
+              { name: "X-Bootstrap-Secret", type: "string", in: "header", required: true, description: "Must match ADMIN_BOOTSTRAP_SECRET" },
+              { name: "tenant_id", type: "string", in: "body", required: true, description: "From the tenant you seeded via SQL" },
+              { name: "email", type: "string", in: "body", required: true, description: "" },
+              { name: "password", type: "string", in: "body", required: true, description: "" },
+              { name: "first_name", type: "string", in: "body", required: true, description: "" },
+              { name: "last_name", type: "string", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": {
+    "id": "usr_admin_1a2b",
+    "email": "admin@my-club.local",
+    "role": "admin",
+    "tenant_id": "ten_9e2b4f"
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/admin/bootstrap \\
+  -H "X-Bootstrap-Secret: $ADMIN_BOOTSTRAP_SECRET" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "tenant_id": "ten_9e2b4f",
+    "email": "admin@my-club.local",
+    "password": "change-me-locally",
+    "first_name": "Site",
+    "last_name": "Admin"
+  }'`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Admin — Venues & Events",
+        description: "All require an admin JWT (from logging in as the bootstrapped admin). Tenant scope comes from the token — there's no tenant field or header to set here.",
+        endpoints: [
+          {
+            id: "admin-create-venue",
+            method: "POST",
+            path: "/api/v1/admin/venues",
+            summary: "Create a venue",
+            description: "",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "Bearer <admin_access_token>" },
+              { name: "name", type: "string", in: "body", required: true, description: "" },
+              { name: "address", type: "string", in: "body", required: true, description: "" },
+              { name: "city", type: "string", in: "body", required: true, description: "" },
+              { name: "country", type: "string", in: "body", required: true, description: "" },
+              { name: "timezone", type: "string", in: "body", required: true, description: "IANA timezone, e.g. Europe/London" },
+              { name: "capacity", type: "integer", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": {
+    "id": "ven_1a2b3c",
+    "name": "My Club Stadium",
+    "capacity": 45000
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/admin/venues \\
+  -H "Authorization: Bearer $ADMIN_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "My Club Stadium",
+    "address": "1 Stadium Way",
+    "city": "Manchester",
+    "country": "UK",
+    "timezone": "Europe/London",
+    "capacity": 45000
+  }'`,
+              },
+            ],
+          },
+          {
+            id: "admin-list-venues",
+            method: "GET",
+            path: "/api/v1/admin/venues",
+            summary: "List venues",
+            description: "",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "Bearer <admin_access_token>" },
+            ],
+            responseExample: `{
+  "data": [
+    { "id": "ven_1a2b3c", "name": "My Club Stadium", "capacity": 45000 }
+  ]
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl http://localhost:8080/api/v1/admin/venues \\
+  -H "Authorization: Bearer $ADMIN_TOKEN"`,
+              },
+            ],
+          },
+          {
+            id: "admin-create-seat-category",
+            method: "POST",
+            path: "/api/v1/admin/seat-categories",
+            summary: "Create a seat category",
+            description: "A reusable label (e.g. \"North Stand\") that ticket categories attach to per event.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "Bearer <admin_access_token>" },
+              { name: "name", type: "string", in: "body", required: true, description: "" },
+              { name: "color", type: "string", in: "body", required: true, description: "Hex color used in seat-map UIs" },
+            ],
+            responseExample: `{
+  "data": { "id": "cat_north_stand", "name": "North Stand", "color": "#3b82f6" }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/admin/seat-categories \\
+  -H "Authorization: Bearer $ADMIN_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "name": "North Stand", "color": "#3b82f6" }'`,
+              },
+            ],
+          },
+          {
+            id: "admin-create-event",
+            method: "POST",
+            path: "/api/v1/admin/events",
+            summary: "Create an event",
+            description: "Creates the event shell. No inventory exists until a ticket category is published against it.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "Bearer <admin_access_token>" },
+              { name: "venue_id", type: "string", in: "body", required: true, description: "" },
+              { name: "name", type: "string", in: "body", required: true, description: "" },
+              { name: "home_team", type: "string", in: "body", required: true, description: "" },
+              { name: "away_team", type: "string", in: "body", required: true, description: "" },
+              { name: "starts_at", type: "string (RFC3339)", in: "body", required: true, description: "" },
+              { name: "sales_start_at", type: "string (RFC3339)", in: "body", required: true, description: "" },
+              { name: "sales_end_at", type: "string (RFC3339)", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": {
+    "id": "evt_7f3a9c",
+    "name": "My Club vs Visitors FC",
+    "status": "draft"
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/admin/events \\
+  -H "Authorization: Bearer $ADMIN_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "venue_id": "ven_1a2b3c",
+    "name": "My Club vs Visitors FC",
+    "home_team": "My Club",
+    "away_team": "Visitors FC",
+    "starts_at": "2026-11-01T15:00:00Z",
+    "sales_start_at": "2026-10-01T09:00:00Z",
+    "sales_end_at": "2026-11-01T13:00:00Z"
+  }'`,
+              },
+            ],
+          },
+          {
+            id: "admin-create-ticket-category",
+            method: "POST",
+            path: "/api/v1/admin/events/{eventID}/ticket-categories",
+            summary: "Attach a ticket category to an event",
+            description: "Links a seat category to this event with a price. Still no purchasable inventory until published.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "Bearer <admin_access_token>" },
+              { name: "eventID", type: "string", in: "path", required: true, description: "" },
+              { name: "seat_category_id", type: "string", in: "body", required: true, description: "" },
+              { name: "price_cents", type: "integer", in: "body", required: true, description: "" },
+              { name: "currency", type: "string", in: "body", required: true, description: "ISO 4217, e.g. GBP" },
+              { name: "max_per_order", type: "integer", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": {
+    "id": "etc_4c8e2d",
+    "seat_category_id": "cat_north_stand",
+    "price_cents": 4500,
+    "currency": "GBP"
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/admin/events/evt_7f3a9c/ticket-categories \\
+  -H "Authorization: Bearer $ADMIN_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "seat_category_id": "cat_north_stand",
+    "price_cents": 4500,
+    "currency": "GBP",
+    "max_per_order": 6
+  }'`,
+              },
+            ],
+          },
+          {
+            id: "admin-publish-event",
+            method: "POST",
+            path: "/api/v1/admin/events/{eventID}/publish",
+            summary: "Publish inventory and flip the event on sale",
+            description: "Generates the actual purchasable inventory rows for a ticket category and moves the event to on_sale.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "Bearer <admin_access_token>" },
+              { name: "eventID", type: "string", in: "path", required: true, description: "" },
+              { name: "event_ticket_category_id", type: "string", in: "body", required: true, description: "" },
+              { name: "quantity", type: "integer", in: "body", required: true, description: "How many GA units to generate" },
+            ],
+            responseExample: `{
+  "data": {
+    "event_id": "evt_7f3a9c",
+    "status": "on_sale",
+    "generated": 500
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/admin/events/evt_7f3a9c/publish \\
+  -H "Authorization: Bearer $ADMIN_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "event_ticket_category_id": "etc_4c8e2d", "quantity": 500 }'`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Fan — Browsing",
+        description: "Public — no JWT required, but every request needs X-Tenant-ID since there's no token yet to carry tenant scope.",
+        endpoints: [
+          {
+            id: "list-events",
+            method: "GET",
+            path: "/api/v1/events",
+            summary: "List events",
+            description: "Returns events for the given tenant.",
+            params: [
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": [
+    {
+      "id": "evt_7f3a9c",
+      "name": "My Club vs Visitors FC",
+      "status": "on_sale",
+      "starts_at": "2026-11-01T15:00:00Z"
+    }
+  ]
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl http://localhost:8080/api/v1/events \\
+  -H "X-Tenant-ID: $TENANT_ID"`,
               },
             ],
           },
           {
             id: "get-event",
             method: "GET",
-            path: "/events/{id}",
+            path: "/api/v1/events/{id}",
             summary: "Get event details",
-            description: "Returns full event metadata including price categories and current availability summary.",
+            description: "Includes ticket categories and live available counts.",
             params: [
-              { name: "id", type: "string", in: "path", required: true, description: "Event ID (evt_…)" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+              { name: "id", type: "string", in: "path", required: true, description: "" },
             ],
             responseExample: `{
-  "id": "evt_7f3a9c2b",
-  "name": "Arsenal vs Chelsea",
-  "status": "on_sale",
-  "starts_at": "2026-04-12T15:00:00Z",
-  "ends_at": "2026-04-12T17:00:00Z",
-  "venue": {
-    "id": "ven_1a2b3c",
-    "name": "Emirates Stadium",
-    "capacity": 60704
-  },
-  "categories": [
-    {
-      "id": "cat_north_bank",
-      "name": "North Bank",
-      "price": 6500,
-      "available": 4200
-    }
-  ],
-  "sales_windows": [
-    {
-      "name": "General public",
-      "starts_at": "2026-03-01T10:00:00Z",
-      "ends_at": "2026-04-12T12:00:00Z"
-    }
+  "data": {
+    "id": "evt_7f3a9c",
+    "name": "My Club vs Visitors FC",
+    "status": "on_sale",
+    "ticket_categories": [
+      { "id": "etc_4c8e2d", "name": "North Stand", "price_cents": 4500, "available": 487 }
+    ]
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl http://localhost:8080/api/v1/events/evt_7f3a9c \\
+  -H "X-Tenant-ID: $TENANT_ID"`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Fan — Waiting Room",
+        description: "Bearer token + X-Tenant-ID both required. Admission happens automatically via cmd/worker within a few seconds — there is no HTTP route to admit yourself.",
+        endpoints: [
+          {
+            id: "join-queue",
+            method: "POST",
+            path: "/api/v1/events/{eventID}/queue",
+            summary: "Join the waiting room",
+            description: "",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+              { name: "eventID", type: "string", in: "path", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": { "admitted": false, "position": 42 }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/events/evt_7f3a9c/queue \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "X-Tenant-ID: $TENANT_ID"`,
+              },
+            ],
+          },
+          {
+            id: "get-queue",
+            method: "GET",
+            path: "/api/v1/events/{eventID}/queue",
+            summary: "Check queue status",
+            description: "Poll until admitted is true — make sure cmd/worker is running in a second terminal, or this never flips.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+              { name: "eventID", type: "string", in: "path", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": { "admitted": true, "position": 0 }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl http://localhost:8080/api/v1/events/evt_7f3a9c/queue \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "X-Tenant-ID: $TENANT_ID"`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Fan — Inventory & Holds",
+        description: "Bearer token + X-Tenant-ID both required. Requires admitted: true from the queue above.",
+        endpoints: [
+          {
+            id: "hold-inventory",
+            method: "POST",
+            path: "/api/v1/inventory/{id}/hold",
+            summary: "Hold an inventory unit",
+            description: "Reserves it for a short TTL. Grab the id from GET /events/{id} in local testing.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+              { name: "id", type: "string", in: "path", required: true, description: "Inventory unit id" },
+              { name: "event_id", type: "string", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": { "hold_token": "hld_9e2b4f", "expires_at": "2026-09-17T15:38:00Z" }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/inventory/inv_1a2b/hold \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "X-Tenant-ID: $TENANT_ID" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "event_id": "evt_7f3a9c" }'`,
+              },
+            ],
+          },
+          {
+            id: "release-inventory",
+            method: "POST",
+            path: "/api/v1/inventory/{id}/release",
+            summary: "Release a hold early",
+            description: "Returns the unit to available inventory before its TTL expires naturally.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+              { name: "id", type: "string", in: "path", required: true, description: "" },
+              { name: "hold_token", type: "string", in: "body", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": { "released": true }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/inventory/inv_1a2b/release \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "X-Tenant-ID: $TENANT_ID" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "hold_token": "hld_9e2b4f" }'`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Fan — Orders",
+        description: "Bearer token + X-Tenant-ID both required. Confirming payment happens via the Stripe webhook below, not a client-facing endpoint.",
+        endpoints: [
+          {
+            id: "create-order",
+            method: "POST",
+            path: "/api/v1/orders",
+            summary: "Create an order from active holds",
+            description: "idempotency_key makes retries safe. Each item references an inventory_id + the hold_token that reserved it.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+              { name: "idempotency_key", type: "string", in: "body", required: true, description: "" },
+              { name: "items", type: "array", in: "body", required: true, description: "[{ inventory_id, hold_token }]" },
+            ],
+            responseExample: `{
+  "data": {
+    "id": "ord_4c8e2d",
+    "status": "pending_payment",
+    "total_cents": 4500
+  }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/orders \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "X-Tenant-ID: $TENANT_ID" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "idempotency_key": "'"$(uuidgen)"'",
+    "items": [{ "inventory_id": "inv_1a2b", "hold_token": "hld_9e2b4f" }]
+  }'`,
+              },
+            ],
+          },
+          {
+            id: "authorize-order",
+            method: "POST",
+            path: "/api/v1/orders/{id}/authorize",
+            summary: "Authorize payment",
+            description: "In mock mode (STRIPE_SECRET_KEY unset) this returns a deterministic client_secret rather than calling Stripe.",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+              { name: "id", type: "string", in: "path", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": { "client_secret": "pi_mock_3Nq_secret_abc123" }
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/api/v1/orders/ord_4c8e2d/authorize \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "X-Tenant-ID: $TENANT_ID"`,
+              },
+            ],
+          },
+          {
+            id: "list-orders",
+            method: "GET",
+            path: "/api/v1/orders",
+            summary: "List your own orders",
+            description: "",
+            params: [
+              { name: "Authorization", type: "string", in: "header", required: true, description: "" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+            ],
+            responseExample: `{
+  "data": [
+    { "id": "ord_4c8e2d", "status": "paid", "total_cents": 4500 }
   ]
 }`,
             codeSamples: [
               {
                 label: "cURL",
                 language: "bash",
-                code: `curl https://api.arena.tickets/v1/events/evt_7f3a9c2b \\
-  -H "Authorization: Bearer $TOKEN"`,
-              },
-            ],
-          },
-          {
-            id: "create-event",
-            method: "POST",
-            path: "/events",
-            summary: "Create an event",
-            description: "Creates a draft event. Requires admin or event-manager role. Inventory is not created until categories and a seating chart are attached.",
-            params: [
-              { name: "name", type: "string", in: "body", required: true, description: "Public display name" },
-              { name: "venue_id", type: "string", in: "body", required: true, description: "Existing venue ID" },
-              { name: "starts_at", type: "string (ISO 8601)", in: "body", required: true, description: "Kick-off time" },
-              { name: "currency", type: "string", in: "body", required: true, description: "ISO 4217 currency code" },
-              { name: "slug", type: "string", in: "body", required: false, description: "URL-safe slug; auto-generated if omitted" },
-            ],
-            responseExample: `{
-  "id": "evt_7f3a9c2b",
-  "name": "Arsenal vs Chelsea",
-  "status": "draft",
-  "created_at": "2026-02-18T11:04:22Z"
-}`,
-            codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl -X POST https://api.arena.tickets/v1/events \\
+                code: `curl http://localhost:8080/api/v1/orders \\
   -H "Authorization: Bearer $TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "name": "Arsenal vs Chelsea",
-    "venue_id": "ven_1a2b3c",
-    "starts_at": "2026-04-12T15:00:00Z",
-    "currency": "GBP"
-  }'`,
-              },
-              {
-                label: "JavaScript",
-                language: "javascript",
-                code: `const event = await fetch("https://api.arena.tickets/v1/events", {
-  method: "POST",
-  headers: {
-    Authorization: \`Bearer \${token}\`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    name: "Arsenal vs Chelsea",
-    venue_id: "ven_1a2b3c",
-    starts_at: "2026-04-12T15:00:00Z",
-    currency: "GBP",
-  }),
-}).then(r => r.json())`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        name: "Inventory & Holds",
-        description: "The high-concurrency critical path. Holds are short-lived Redis + Postgres records that reserve seats while the user checks out.",
-        endpoints: [
-          {
-            id: "create-hold",
-            method: "POST",
-            path: "/holds",
-            summary: "Create a seat hold",
-            description: `Attempts to reserve one or more seats (or a quantity in a general-admission category) for a short period.
-
-The request is idempotent when an Idempotency-Key header is supplied. On success the client receives a hold_id and an absolute expiry timestamp. The hold must be converted into an order before expiry or it is automatically released.
-
-Under the hood this is the Redis SET NX EX + Postgres transaction path described in the architecture section.`,
-            params: [
-              { name: "event_id", type: "string", in: "body", required: true, description: "Event to reserve seats for" },
-              { name: "items", type: "array", in: "body", required: true, description: "Array of { category_id, quantity } or { seat_ids: string[] }" },
-              { name: "Idempotency-Key", type: "string", in: "header", required: false, description: "Client-generated unique key to make the request safely retryable" },
-            ],
-            responseExample: `{
-  "id": "hld_9e2b4f1a",
-  "event_id": "evt_7f3a9c2b",
-  "status": "active",
-  "expires_at": "2026-03-15T14:22:18Z",
-  "items": [
-    {
-      "category_id": "cat_north_bank",
-      "quantity": 2,
-      "unit_price": 6500,
-      "seat_ids": ["A-12-14", "A-12-15"]
-    }
-  ],
-  "total": 13000,
-  "currency": "GBP"
-}`,
-            codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl -X POST https://api.arena.tickets/v1/holds \\
-  -H "Authorization: Bearer $TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \\
-  -d '{
-    "event_id": "evt_7f3a9c2b",
-    "items": [
-      { "category_id": "cat_north_bank", "quantity": 2 }
-    ]
-  }'`,
-              },
-              {
-                label: "JavaScript",
-                language: "javascript",
-                code: `const hold = await fetch("https://api.arena.tickets/v1/holds", {
-  method: "POST",
-  headers: {
-    Authorization: \`Bearer \${token}\`,
-    "Content-Type": "application/json",
-    "Idempotency-Key": crypto.randomUUID(),
-  },
-  body: JSON.stringify({
-    event_id: "evt_7f3a9c2b",
-    items: [{ category_id: "cat_north_bank", quantity: 2 }],
-  }),
-}).then(r => r.json())`,
-              },
-              {
-                label: "Python",
-                language: "python",
-                code: `import uuid
-res = requests.post(
-    "https://api.arena.tickets/v1/holds",
-    headers={
-        "Authorization": f"Bearer {token}",
-        "Idempotency-Key": str(uuid.uuid4()),
-    },
-    json={
-        "event_id": "evt_7f3a9c2b",
-        "items": [{"category_id": "cat_north_bank", "quantity": 2}],
-    },
-)
-hold = res.json()`,
-              },
-            ],
-          },
-          {
-            id: "get-hold",
-            method: "GET",
-            path: "/holds/{id}",
-            summary: "Retrieve a hold",
-            description: "Returns the current state of a hold. Useful for polling remaining time before checkout.",
-            params: [
-              { name: "id", type: "string", in: "path", required: true, description: "Hold ID (hld_…)" },
-            ],
-            responseExample: `{
-  "id": "hld_9e2b4f1a",
-  "status": "active",
-  "expires_at": "2026-03-15T14:22:18Z",
-  "seconds_remaining": 412,
-  "total": 13000
-}`,
-            codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl https://api.arena.tickets/v1/holds/hld_9e2b4f1a \\
-  -H "Authorization: Bearer $TOKEN"`,
-              },
-            ],
-          },
-          {
-            id: "release-hold",
-            method: "DELETE",
-            path: "/holds/{id}",
-            summary: "Release a hold early",
-            description: "Explicitly cancels an active hold and returns the seats to inventory. Idempotent.",
-            params: [
-              { name: "id", type: "string", in: "path", required: true, description: "Hold ID" },
-            ],
-            responseExample: `{
-  "id": "hld_9e2b4f1a",
-  "status": "released"
-}`,
-            codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl -X DELETE https://api.arena.tickets/v1/holds/hld_9e2b4f1a \\
-  -H "Authorization: Bearer $TOKEN"`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        name: "Orders & Checkout",
-        description: "Convert an active hold into a paid order. The entire conversion happens inside a single Postgres transaction.",
-        endpoints: [
-          {
-            id: "create-order",
-            method: "POST",
-            path: "/orders",
-            summary: "Create order from hold",
-            description: `Converts an active hold into an order and initiates payment.
-
-Requires the hold to still be valid. The request is idempotent via Idempotency-Key. On success the response contains a payment intent (Stripe / Adyen) that the client must confirm. Once payment succeeds a webhook or polling endpoint finalizes the tickets.`,
-            params: [
-              { name: "hold_id", type: "string", in: "body", required: true, description: "Active hold to convert" },
-              { name: "customer", type: "object", in: "body", required: true, description: "{ email, first_name, last_name, phone? }" },
-              { name: "payment_method", type: "string", in: "body", required: false, description: "Preferred provider: stripe | adyen (default stripe)" },
-              { name: "Idempotency-Key", type: "string", in: "header", required: true, description: "Required for all order creation requests" },
-            ],
-            responseExample: `{
-  "id": "ord_4c8e2d91",
-  "status": "pending_payment",
-  "hold_id": "hld_9e2b4f1a",
-  "total": 13000,
-  "currency": "GBP",
-  "payment": {
-    "provider": "stripe",
-    "client_secret": "pi_3Nq…_secret_…",
-    "publishable_key": "pk_live_…"
-  },
-  "expires_at": "2026-03-15T14:22:18Z"
-}`,
-            codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl -X POST https://api.arena.tickets/v1/orders \\
-  -H "Authorization: Bearer $TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -H "Idempotency-Key: $(uuidgen)" \\
-  -d '{
-    "hold_id": "hld_9e2b4f1a",
-    "customer": {
-      "email": "fan@example.com",
-      "first_name": "Alex",
-      "last_name": "Morgan"
-    }
-  }'`,
-              },
-              {
-                label: "JavaScript",
-                language: "javascript",
-                code: `const order = await fetch("https://api.arena.tickets/v1/orders", {
-  method: "POST",
-  headers: {
-    Authorization: \`Bearer \${token}\`,
-    "Content-Type": "application/json",
-    "Idempotency-Key": crypto.randomUUID(),
-  },
-  body: JSON.stringify({
-    hold_id: "hld_9e2b4f1a",
-    customer: {
-      email: "fan@example.com",
-      first_name: "Alex",
-      last_name: "Morgan",
-    },
-  }),
-}).then(r => r.json())
-
-// Then confirm payment with Stripe.js using order.payment.client_secret`,
+  -H "X-Tenant-ID: $TENANT_ID"`,
               },
             ],
           },
           {
             id: "get-order",
             method: "GET",
-            path: "/orders/{id}",
-            summary: "Retrieve an order",
-            description: "Returns order status, line items, and ticket download links once the order is paid.",
+            path: "/api/v1/orders/{id}",
+            summary: "Get a single order",
+            description: "Check status: paid here after firing the webhook below.",
             params: [
-              { name: "id", type: "string", in: "path", required: true, description: "Order ID (ord_…)" },
+              { name: "Authorization", type: "string", in: "header", required: true, description: "" },
+              { name: "X-Tenant-ID", type: "string", in: "header", required: true, description: "" },
+              { name: "id", type: "string", in: "path", required: true, description: "" },
             ],
             responseExample: `{
-  "id": "ord_4c8e2d91",
-  "status": "paid",
-  "total": 13000,
-  "currency": "GBP",
-  "tickets": [
-    {
-      "id": "tkt_a1b2c3",
-      "seat": "A-12-14",
-      "barcode": "https://api.arena.tickets/v1/tickets/tkt_a1b2c3/barcode",
-      "pdf": "https://api.arena.tickets/v1/tickets/tkt_a1b2c3/pdf"
-    }
-  ],
-  "paid_at": "2026-03-15T14:18:03Z"
+  "data": { "id": "ord_4c8e2d", "status": "paid", "total_cents": 4500 }
 }`,
             codeSamples: [
               {
                 label: "cURL",
                 language: "bash",
-                code: `curl https://api.arena.tickets/v1/orders/ord_4c8e2d91 \\
-  -H "Authorization: Bearer $TOKEN"`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        name: "Webhooks",
-        description: "Outbound webhooks for order and inventory events. Delivered via the worker process with exponential backoff.",
-        endpoints: [
-          {
-            id: "register-webhook",
-            method: "POST",
-            path: "/webhooks",
-            summary: "Register a webhook endpoint",
-            description: "Subscribes a URL to one or more event types. The signing secret is returned only once at creation time.",
-            params: [
-              { name: "url", type: "string", in: "body", required: true, description: "HTTPS endpoint that will receive POST payloads" },
-              { name: "events", type: "array", in: "body", required: true, description: "Event types, e.g. [\"order.paid\", \"hold.expired\", \"inventory.low\"]" },
-            ],
-            responseExample: `{
-  "id": "wh_3f91a2",
-  "url": "https://your-app.com/hooks/arena",
-  "events": ["order.paid", "hold.expired"],
-  "signing_secret": "whsec_8f2a1c9e…"
-}`,
-            codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl -X POST https://api.arena.tickets/v1/webhooks \\
+                code: `curl http://localhost:8080/api/v1/orders/ord_4c8e2d \\
   -H "Authorization: Bearer $TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "url": "https://your-app.com/hooks/arena",
-    "events": ["order.paid", "hold.expired"]
-  }'`,
+  -H "X-Tenant-ID: $TENANT_ID"`,
               },
-            ],
-          },
-        ],
-      },
-      {
-        name: "Admin / Tenants",
-        description: "Tenant management and elevated operations. Requires admin role.",
-        endpoints: [
-          {
-            id: "list-tenants",
-            method: "GET",
-            path: "/admin/tenants",
-            summary: "List tenants (platform admin only)",
-            description: "Platform-level endpoint. Not available to ordinary tenant admins.",
-            responseExample: `{
-  "data": [
-    {
-      "id": "ten_arsenal",
-      "name": "Arsenal FC",
-      "slug": "arsenal",
-      "status": "active",
-      "created_at": "2025-11-02T09:00:00Z"
-    }
-  ]
-}`,
-            codeSamples: [
-              {
-                label: "cURL",
-                language: "bash",
-                code: `curl https://api.arena.tickets/v1/admin/tenants \\
-  -H "Authorization: Bearer $PLATFORM_ADMIN_TOKEN"`,
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────────────────────
-  // Ledger (existing)
-  // ─────────────────────────────────────────────────────────────
-  {
-    slug: "ledger",
-    name: "Ledger",
-    tagline: "Payments & invoicing API",
-    description:
-      "Ledger handles customers, invoices, and payment capture for subscription and one-off billing. Built for teams who need programmatic control over the full invoice lifecycle without owning a payments stack.",
-    baseUrl: "https://api.ledger.dev/v1",
-    auth: {
-      type: "Bearer token",
-      header: "Authorization: Bearer sk_live_••••••••",
-      description:
-        "Every request needs a secret key in the Authorization header. Keys are scoped per environment — use sk_test_ keys against the sandbox base URL while integrating.",
-    },
-    groups: [
-      {
-        name: "Customers",
-        description: "Create and look up the people or organizations you bill.",
-        endpoints: [
-          {
-            id: "list-customers",
-            method: "GET",
-            path: "/customers",
-            summary: "List customers",
-            description:
-              "Returns customers in reverse-chronological order. Use `starting_after` with the last id from a previous page to paginate.",
-            params: [
-              { name: "limit", type: "integer", in: "query", required: false, description: "Max results to return. Defaults to 20, max 100." },
-              { name: "starting_after", type: "string", in: "query", required: false, description: "Cursor for pagination — the id of the last customer on the previous page." },
-              { name: "email", type: "string", in: "query", required: false, description: "Filter to an exact email match." },
-            ],
-            responseExample: `{
-  "data": [
-    {
-      "id": "cus_9f2a1b",
-      "name": "Mercer Coffee Co.",
-      "email": "billing@mercercoffee.com",
-      "created_at": "2026-03-11T09:22:00Z"
-    }
-  ],
-  "has_more": false
-}`,
-            codeSamples: [
-              { label: "cURL", language: "bash", code: `curl https://api.ledger.dev/v1/customers \\
-  -H "Authorization: Bearer sk_live_••••••••"` },
-              { label: "JavaScript", language: "javascript", code: `const res = await fetch("https://api.ledger.dev/v1/customers", {
-  headers: { Authorization: \`Bearer \${process.env.LEDGER_KEY}\` },
-})
-const { data } = await res.json()` },
-              { label: "Python", language: "python", code: `import requests
-
-res = requests.get(
-    "https://api.ledger.dev/v1/customers",
-    headers={"Authorization": f"Bearer {LEDGER_KEY}"},
-)
-data = res.json()["data"]` },
-            ],
-          },
-          {
-            id: "create-customer",
-            method: "POST",
-            path: "/customers",
-            summary: "Create a customer",
-            description: "Creates a customer record. `email` is the only required field — everything else can be filled in later.",
-            params: [
-              { name: "email", type: "string", in: "body", required: true, description: "Primary contact email. Used for invoice delivery." },
-              { name: "name", type: "string", in: "body", required: false, description: "Display name shown on invoices." },
-              { name: "metadata", type: "object", in: "body", required: false, description: "Arbitrary key-value pairs to store alongside the customer." },
-            ],
-            responseExample: `{
-  "id": "cus_9f2a1b",
-  "name": "Mercer Coffee Co.",
-  "email": "billing@mercercoffee.com",
-  "created_at": "2026-03-11T09:22:00Z"
-}`,
-            codeSamples: [
-              { label: "cURL", language: "bash", code: `curl -X POST https://api.ledger.dev/v1/customers \\
-  -H "Authorization: Bearer sk_live_••••••••" \\
-  -d email="billing@mercercoffee.com" \\
-  -d name="Mercer Coffee Co."` },
-              { label: "JavaScript", language: "javascript", code: `const res = await fetch("https://api.ledger.dev/v1/customers", {
-  method: "POST",
-  headers: {
-    Authorization: \`Bearer \${process.env.LEDGER_KEY}\`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    email: "billing@mercercoffee.com",
-    name: "Mercer Coffee Co.",
-  }),
-})
-const customer = await res.json()` },
-              { label: "Python", language: "python", code: `res = requests.post(
-    "https://api.ledger.dev/v1/customers",
-    headers={"Authorization": f"Bearer {LEDGER_KEY}"},
-    json={"email": "billing@mercercoffee.com", "name": "Mercer Coffee Co."},
-)
-customer = res.json()` },
-            ],
-          },
-        ],
-      },
-      {
-        name: "Invoices",
-        description: "Build, send, and track invoices against a customer.",
-        endpoints: [
-          {
-            id: "create-invoice",
-            method: "POST",
-            path: "/invoices",
-            summary: "Create an invoice",
-            description: "Creates a draft invoice for a customer. Invoices stay in `draft` until sent — use the send endpoint below to finalize and deliver it.",
-            params: [
-              { name: "customer_id", type: "string", in: "body", required: true, description: "The customer this invoice bills." },
-              { name: "line_items", type: "array", in: "body", required: true, description: "Array of { description, amount, quantity } objects." },
-              { name: "due_date", type: "string (ISO 8601)", in: "body", required: false, description: "Defaults to 30 days from send." },
-            ],
-            responseExample: `{
-  "id": "inv_71ac4d",
-  "status": "draft",
-  "customer_id": "cus_9f2a1b",
-  "total": 48000,
-  "currency": "usd",
-  "due_date": "2026-04-10T00:00:00Z"
-}`,
-            codeSamples: [
-              { label: "cURL", language: "bash", code: `curl -X POST https://api.ledger.dev/v1/invoices \\
-  -H "Authorization: Bearer sk_live_••••••••" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "customer_id": "cus_9f2a1b",
-    "line_items": [{ "description": "March retainer", "amount": 48000, "quantity": 1 }]
-  }'` },
-              { label: "JavaScript", language: "javascript", code: `const invoice = await fetch("https://api.ledger.dev/v1/invoices", {
-  method: "POST",
-  headers: {
-    Authorization: \`Bearer \${process.env.LEDGER_KEY}\`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    customer_id: "cus_9f2a1b",
-    line_items: [{ description: "March retainer", amount: 48000, quantity: 1 }],
-  }),
-}).then((r) => r.json())` },
-              { label: "Python", language: "python", code: `invoice = requests.post(
-    "https://api.ledger.dev/v1/invoices",
-    headers={"Authorization": f"Bearer {LEDGER_KEY}"},
-    json={
-        "customer_id": "cus_9f2a1b",
-        "line_items": [{"description": "March retainer", "amount": 48000, "quantity": 1}],
-    },
-).json()` },
-            ],
-          },
-          {
-            id: "send-invoice",
-            method: "POST",
-            path: "/invoices/{id}/send",
-            summary: "Send an invoice",
-            description: "Finalizes a draft invoice and emails it to the customer on file. Once sent, line items are locked.",
-            params: [
-              { name: "id", type: "string", in: "path", required: true, description: "The invoice id, e.g. inv_71ac4d." },
-            ],
-            responseExample: `{
-  "id": "inv_71ac4d",
-  "status": "sent",
-  "sent_at": "2026-03-12T14:05:00Z"
-}`,
-            codeSamples: [
-              { label: "cURL", language: "bash", code: `curl -X POST https://api.ledger.dev/v1/invoices/inv_71ac4d/send \\
-  -H "Authorization: Bearer sk_live_••••••••"` },
-              { label: "JavaScript", language: "javascript", code: `await fetch(\`https://api.ledger.dev/v1/invoices/\${invoiceId}/send\`, {
-  method: "POST",
-  headers: { Authorization: \`Bearer \${process.env.LEDGER_KEY}\` },
-})` },
-              { label: "Python", language: "python", code: `requests.post(
-    f"https://api.ledger.dev/v1/invoices/{invoice_id}/send",
-    headers={"Authorization": f"Bearer {LEDGER_KEY}"},
-)` },
-            ],
-          },
-          {
-            id: "get-invoice",
-            method: "GET",
-            path: "/invoices/{id}",
-            summary: "Retrieve an invoice",
-            description: "Fetches a single invoice, including its current status and payment history.",
-            params: [
-              { name: "id", type: "string", in: "path", required: true, description: "The invoice id." },
-            ],
-            responseExample: `{
-  "id": "inv_71ac4d",
-  "status": "paid",
-  "total": 48000,
-  "amount_paid": 48000,
-  "paid_at": "2026-03-14T09:00:00Z"
-}`,
-            codeSamples: [
-              { label: "cURL", language: "bash", code: `curl https://api.ledger.dev/v1/invoices/inv_71ac4d \\
-  -H "Authorization: Bearer sk_live_••••••••"` },
-              { label: "JavaScript", language: "javascript", code: `const invoice = await fetch(\`https://api.ledger.dev/v1/invoices/\${id}\`, {
-  headers: { Authorization: \`Bearer \${process.env.LEDGER_KEY}\` },
-}).then((r) => r.json())` },
-              { label: "Python", language: "python", code: `invoice = requests.get(
-    f"https://api.ledger.dev/v1/invoices/{invoice_id}",
-    headers={"Authorization": f"Bearer {LEDGER_KEY}"},
-).json()` },
             ],
           },
         ],
       },
       {
         name: "Webhooks",
-        description: "Get notified when invoice and payment state changes.",
+        description: "No Bearer token — authenticated instead by a computed Stripe-Signature header. This is the call that actually flips an order to paid and enqueues its confirmation notification.",
         endpoints: [
           {
-            id: "register-webhook",
+            id: "stripe-webhook",
             method: "POST",
-            path: "/webhooks",
-            summary: "Register a webhook endpoint",
-            description: "Registers a URL to receive event notifications. Ledger retries failed deliveries with exponential backoff for 24 hours.",
+            path: "/webhooks/stripe",
+            summary: "Stripe payment webhook",
+            description: "In mock mode the signature is hex(HMAC-SHA256(raw_body, STRIPE_WEBHOOK_SECRET)) — no timestamp prefix, unlike real Stripe's t=...,v1=... format. Compute it outside Postman with openssl, or with a pre-request script.",
             params: [
-              { name: "url", type: "string", in: "body", required: true, description: "HTTPS endpoint to receive event payloads." },
-              { name: "events", type: "array", in: "body", required: true, description: "Event types to subscribe to, e.g. [\"invoice.paid\"]." },
+              { name: "Stripe-Signature", type: "string", in: "header", required: true, description: "hex(HMAC-SHA256(raw_body, STRIPE_WEBHOOK_SECRET))" },
             ],
             responseExample: `{
-  "id": "wh_3c81e2",
-  "url": "https://mercercoffee.com/hooks/ledger",
-  "events": ["invoice.paid", "invoice.overdue"],
-  "signing_secret": "whsec_••••••••"
+  "data": { "received": true }
 }`,
             codeSamples: [
-              { label: "cURL", language: "bash", code: `curl -X POST https://api.ledger.dev/v1/webhooks \\
-  -H "Authorization: Bearer sk_live_••••••••" \\
+              {
+                label: "cURL",
+                language: "bash",
+                code: `BODY='{"type":"payment_intent.succeeded","data":{"object":{"id":"pi_mock_3Nq"}}}'
+SIG=$(openssl dgst -sha256 -hmac "$STRIPE_WEBHOOK_SECRET" <<< "$BODY" | sed 's/^.* //')
+
+curl -X POST http://localhost:8080/webhooks/stripe \\
+  -H "Stripe-Signature: $SIG" \\
   -H "Content-Type: application/json" \\
-  -d '{ "url": "https://mercercoffee.com/hooks/ledger", "events": ["invoice.paid"] }'` },
-              { label: "JavaScript", language: "javascript", code: `await fetch("https://api.ledger.dev/v1/webhooks", {
-  method: "POST",
-  headers: {
-    Authorization: \`Bearer \${process.env.LEDGER_KEY}\`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: "https://mercercoffee.com/hooks/ledger",
-    events: ["invoice.paid"],
-  }),
-})` },
-              { label: "Python", language: "python", code: `requests.post(
-    "https://api.ledger.dev/v1/webhooks",
-    headers={"Authorization": f"Bearer {LEDGER_KEY}"},
-    json={"url": "https://mercercoffee.com/hooks/ledger", "events": ["invoice.paid"]},
-)` },
+  -d "$BODY"`,
+              },
             ],
           },
         ],

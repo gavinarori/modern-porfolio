@@ -10,6 +10,7 @@ import { personal } from "../data/portfolio-data"
 const LINKS = [
   { href: "/experience", label: "Experience" },
   { href: "/projects", label: "Projects" },
+  { href: "/docs", label: "Docs" },
   { href: "/blog", label: "Writing" },
   { href: "/contact", label: "Contact" },
 ]
