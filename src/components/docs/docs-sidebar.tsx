@@ -36,6 +36,20 @@ export function DocsSidebar({ project }: { project: DocsProject }) {
               Base URL &amp; auth
             </a>
           </li>
+          {project.architecture && (
+            <li>
+              <a href="#architecture" className="text-foreground/60 transition-colors hover:text-foreground">
+                Architecture &amp; trade-offs
+              </a>
+            </li>
+          )}
+          {project.localSetup && (
+            <li>
+              <a href="#local-setup" className="text-foreground/60 transition-colors hover:text-foreground">
+                Run it locally
+              </a>
+            </li>
+          )}
         </ul>
       </div>
 

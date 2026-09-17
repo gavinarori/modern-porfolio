@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Github } from "lucide-react"
 
 import { Reveal } from "../../../components/reveal"
 import { DocsSidebar } from "../../../components/docs/docs-sidebar"
 import { EndpointSection } from "../../../components/docs/endpoint-section"
+import { ArchitectureSection } from "../../../components/docs/architecture-section"
+import { SetupSteps } from "../../../components/docs/setup-steps"
 import { docsProjects, getDocsProject } from "../../../data/docs-data"
 import { personal } from "../../../data/portfolio-data"
 
@@ -29,13 +31,27 @@ export default function ProjectDocsPage({ params }: { params: { project: string 
   return (
     <div className="px-6 pb-28 pt-32 sm:pt-40">
       <div className="mx-auto max-w-6xl">
-        <Link
-          href="/docs"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          All docs
-        </Link>
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            href="/docs"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            All docs
+          </Link>
+
+          {project.githubUrl && (
+            <a
+              href={project.githubUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-sm text-foreground/80 transition-colors hover:border-foreground/30 hover:text-foreground"
+            >
+              <Github className="h-3.5 w-3.5" />
+              View source
+            </a>
+          )}
+        </div>
 
         <Reveal className="mt-6 max-w-3xl">
           <p className="mb-4 text-sm tracking-widest text-muted-foreground">{project.tagline.toUpperCase()}</p>
@@ -64,6 +80,9 @@ export default function ProjectDocsPage({ params }: { params: { project: string 
                 </div>
               </div>
             </section>
+
+            {project.architecture && <ArchitectureSection architecture={project.architecture} />}
+            {project.localSetup && <SetupSteps localSetup={project.localSetup} />}
 
             {project.groups.map((group) => (
               <div key={group.name} className="border-b border-border pb-2 pt-12 first:pt-12">
