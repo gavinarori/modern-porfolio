@@ -1,7 +1,7 @@
 export const personal = {
   name: "Gavin Arori",
-  role: "Full-Stack Developer",
-  subrole: "React, Next.js & Node.js",
+  role: "Full-Stack & Systems Engineer",
+  subrole: "I design and ship multi-tenant, secure, scalable web platforms.",
   tagline:
     "I build reliable, high-performance applications that solve real-world problems, and I genuinely care about making software people enjoy using.",
   avatarUrl: "/DSC_5521.NEF.jpg",
