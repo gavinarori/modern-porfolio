@@ -963,6 +963,379 @@ curl -X POST http://localhost:8080/webhooks/stripe \\
   },
 
   // ─────────────────────────────────────────────────────────────
+  // Job Scheduler (real project — local only, no hosted deployment)
+  // ─────────────────────────────────────────────────────────────
+  {
+    slug: "job-scheduler",
+    name: "Job Scheduler",
+    tagline: "Distributed one-off & recurring job scheduler",
+    description:
+      "A distributed job scheduler in Go: an HTTP API that persists jobs to MongoDB, an etcd-elected scheduler that claims due work and publishes it to Kafka, per-job-type executors with retry/backoff and a dead-letter queue, and a reaper that recovers stuck jobs. Supports one-off and cron-recurring jobs. Runs entirely on localhost — no hosted environment.",
+    baseUrl: "http://localhost:8080",
+    auth: {
+      type: "None",
+      header: "—",
+      description:
+        "The API has no authentication. Tenant scope is a plain tenantId field — in the request body when creating a job and in the query string when listing — and is not verified against any identity. That's fine for a local, single-operator setup but means the API must sit behind a gateway or auth layer before being exposed anywhere. Errors are returned as { \"error\": \"message\" } with a matching HTTP status; successful responses are the raw resource, with no data envelope.",
+    },
+        githubUrl: "https://github.com/gavinarori/high-scale-job-scheduler",
+    architecture: {
+      intro:
+        "Five small binaries share one config package and one Mongo-backed repository. cmd/api accepts jobs, cmd/scheduler claims due jobs and publishes them, cmd/executor consumes them and runs handlers, cmd/reaper recovers anything that gets stuck, and cmd/seed / cmd/loadtest are tooling. Each job's lifecycle is a status field in Mongo; Kafka only carries a small wake-up message, never the payload.",
+      sections: [
+        {
+          heading: "Job lifecycle",
+          body: "Every job is one document in the jobs collection and moves through a fixed set of statuses. Mongo is the single source of truth — Kafka and etcd hold no job state.",
+          bullets: [
+            "pending → queued: the scheduler atomically claims a due job (scheduledAt <= now) with findOneAndUpdate, highest priority first, then oldest scheduledAt",
+            "queued → claimed → running: the executor marks the job as it picks up the Kafka message and starts the handler",
+            "running → completed on success; on failure → pending again with a pushed-out scheduledAt, or → dlq once attempts reach maxAttempts",
+            "A failed status is defined in the model but never written — a failed attempt goes straight back to pending or on to dlq",
+          ],
+        },
+        {
+          heading: "Scheduler & leader election",
+          body: "Any number of scheduler instances can run, but only one dispatches at a time.",
+          bullets: [
+            "Instances campaign via etcd's concurrency election (10s lease TTL). Standbys block until the leader's session dies, then etcd resolves a new leader through Raft",
+            "If a leader's session ends mid-run, its loop context is cancelled so it stops dispatching rather than trusting its own belief that it's still leading",
+            "The loop ticks every SCHEDULER_TICK (default 500ms) and claims up to 20 jobs per tick",
+            "Claiming is a single-document atomic update, so even a handoff overlap between two instances can't double-claim a job",
+          ],
+        },
+        {
+          heading: "Dispatch & execution",
+          body: "The scheduler publishes a tiny message to a per-job-type Kafka topic; the executor loads the full job from Mongo by ID.",
+          bullets: [
+            "Topic per type: jobs.dispatch.<jobType>. Messages carry only jobId, jobType, and priority, so payload size never affects Kafka",
+            "One executor process per job type (JOB_TYPE), in consumer group executor-<jobType>, so a slow type's backlog can't starve a fast one and each scales independently",
+            "Offsets are committed manually after the handler returns, and handlers run inline — a crashed executor's message is redelivered, and the reaper covers jobs left half-run",
+            "Handlers are plain functions registered by name. Built in: noop, log-message, flaky (configurable failRate, exists to exercise retry/DLQ), and slow (configurable sleepMs)",
+          ],
+        },
+        {
+          heading: "Retries & dead-letter queue",
+          body: "Retry state lives in the job document, not in a separate retry topic.",
+          bullets: [
+            "On failure the attempt counter increments and lastError is recorded",
+            "Backoff is 2^attempt seconds, capped at 5 minutes — the job returns to pending with scheduledAt pushed out, and the scheduler picks it up again naturally",
+            "Once attempts reach maxAttempts (default 3) the job's status becomes dlq, it is never claimed again, and a message is also published to the jobs.dlq Kafka topic for external inspection",
+          ],
+        },
+        {
+          heading: "Recurring (cron) jobs",
+          body: "A cron job is a template that never runs itself — it only spawns instances.",
+          bullets: [
+            "Standard 5-field cron (minute hour dom month dow), no seconds field. The expression is validated at creation time, and the first scheduledAt is computed server-side",
+            "When a template comes due, the scheduler inserts a normal one-off instance with key <template-key>-run-<unixnano> and no cron field, then reschedules the template to its next occurrence",
+            "Retry history, idempotency, and DLQ state are therefore scoped to each individual run rather than the template",
+            "A template whose expression can no longer be parsed (e.g. hand-edited in Mongo) is dead-lettered with the reason in lastError instead of silently halting",
+          ],
+        },
+        {
+          heading: "Reaper",
+          body: "A background sweep every 30 seconds that returns stuck jobs to pending. Two sweeps, two timeouts.",
+          bullets: [
+            "queued longer than QUEUED_TIMEOUT (30s) — the scheduler claimed the job but its Kafka publish failed or never landed",
+            "claimed / running longer than CLAIM_TIMEOUT (5m) — an executor crashed or hung mid-job",
+            "Recoveries are counted in reaper_recovered_jobs_total{sweep}, so a rising rate is an early signal that Kafka or an executor is unhealthy",
+          ],
+        },
+        {
+          heading: "Observability",
+          body: "Every binary serves Prometheus metrics and a health check on a separate listener from job traffic.",
+          bullets: [
+            "/metrics and /healthz on port 9100 (METRICS_PORT), so a scrape problem can't affect the job API and vice versa",
+            "Scheduler: tick duration, jobs claimed, dispatch errors, cron instances spawned, invalid cron templates",
+            "Executor: jobs processed per job_type and result, handler duration per job_type",
+            "Consumer lag — what the Kubernetes KEDA ScaledObject scales executors on — comes from KEDA's own Kafka scaler, not from these metrics",
+          ],
+        },
+      ],
+      tradeoffs: [
+        "Mongo is the source of truth and Kafka is only a wake-up signal — a lost or duplicated Kafka message can never lose a job, because the reaper re-pends anything stuck in queued, at the cost of up to QUEUED_TIMEOUT of added latency on that failure path",
+        "Delivery is at-least-once: a job reclaimed by the reaper while its original executor is still running can execute twice, so handlers should be idempotent",
+        "Retries reuse the scheduler's normal claim path (status back to pending with a later scheduledAt) instead of a delay-aware retry topic — simpler and fewer moving parts, but retry timing is only as fine-grained as the scheduler tick",
+        "Claiming is one findOneAndUpdate per job (up to 20 per tick) rather than a bulk update — this keeps every claim atomic and priority-ordered at the cost of more round-trips per tick",
+        "A single elected leader dispatches, so throughput is bounded by one scheduler's loop; extra instances buy failover, not scale",
+        "The API is unauthenticated and tenantId is self-declared — acceptable for local development, but tenant isolation is a convention here, not an enforced boundary",
+      ],
+    },
+    localSetup: {
+      intro:
+        "Everything below runs against localhost. The Docker Compose stack starts every dependency and service at once — etcd, Kafka, a single-node Mongo replica set, the API, two scheduler instances, one executor per job type, the reaper, Prometheus, and Grafana.",
+      steps: [
+        {
+          title: "Start the full stack",
+          description:
+            "Builds and starts everything. Mongo runs as a single-node replica set because transactions require one. The API listens on :8080, Prometheus on :9090, and Grafana on :3000 (anonymous admin, local only).",
+          command: "docker compose -f deployments/docker/docker-compose.yml up --build",
+        },
+        {
+          title: "Or run just the API against hosted Mongo",
+          description:
+            "Alternative to Docker for the Mongo side: copy the example env file and set MONGO_URI (e.g. an Atlas mongodb+srv:// string — drop any ?replicaSet= param). cmd/api needs only Mongo; running the scheduler and executor this way also needs Kafka and etcd reachable via KAFKA_BROKERS and ETCD_ENDPOINTS.",
+          command: "cp .env.example .env && go run ./cmd/api",
+        },
+        {
+          title: "Verify",
+          description:
+            "Confirms the API is up. The per-binary /metrics and /healthz on port 9100 aren't published to the host by Compose — Prometheus scrapes them over the Docker network.",
+          command: "curl localhost:8080/healthz",
+        },
+        {
+          title: "Create a job",
+          description:
+            "Submit a one-off job scheduled for a time in the past or near future. Within one scheduler tick it is claimed, published to jobs.dispatch.log-message, run by executor-log-message, and marked completed. See Create a job below for the full request.",
+        },
+        {
+          title: "Seed demo data (optional)",
+          description:
+            "Inserts a realistic mix directly into Mongo — immediate and future one-off jobs, a fraction using the flaky handler so retries and the DLQ have entries, some slow jobs, and a few cron templates across tenants. The fastest way to see every code path exercised.",
+          command: "docker compose -f deployments/docker/docker-compose.yml run --rm seed -count 500",
+        },
+        {
+          title: "Load test the running stack (optional)",
+          description:
+            "Sends jobs at a target rate over HTTP, then polls each until it reaches completed or dlq, reporting ack latency and end-to-end p50/p95/p99. Needs the full stack running, not just Mongo.",
+          command: "go run ./cmd/loadtest -rate 20 -duration 30s",
+        },
+        {
+          title: "Run the tests",
+          description:
+            "Integration tests run against a real Mongo replica set started by testcontainers (Docker required) and cover idempotency, claim concurrency, retry/DLQ, reaper recovery, and cron. Load benchmarks are separate.",
+          command: "go test ./test/integration/... -v",
+        },
+      ],
+    },
+    groups: [
+      {
+        name: "Health & Status",
+        description: "No auth required. Liveness only.",
+        endpoints: [
+          {
+            id: "healthz",
+            method: "GET",
+            path: "/healthz",
+            summary: "API liveness probe",
+            description:
+              "Returns 200 with a plain-text body. It does not check Mongo. Each binary also serves its own /healthz and /metrics on port 9100.",
+            responseExample: `ok`,
+            codeSamples: [
+              { label: "cURL", language: "bash", code: `curl http://localhost:8080/healthz` },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Jobs",
+        description:
+          "Create, fetch, and list jobs. Jobs are processed asynchronously — a 201 means the job is stored as pending, not that it has run. Poll GET /jobs/{id} for status.",
+        endpoints: [
+          {
+            id: "create-job",
+            method: "POST",
+            path: "/jobs",
+            summary: "Create a one-off job",
+            description:
+              "Stores a job in pending status. Once scheduledAt is due, the scheduler claims it and it runs on the executor for its jobType. idempotencyKey is unique across all jobs; reusing one returns 409 rather than creating a duplicate, which makes client retries safe. Higher priority values are claimed first. maxAttempts defaults to 3 if omitted or not positive.",
+            params: [
+              { name: "idempotencyKey", type: "string", in: "body", required: true, description: "Globally unique. Duplicate → 409 Conflict" },
+              { name: "tenantId", type: "string", in: "body", required: true, description: "Groups jobs for listing; not authenticated" },
+              { name: "jobType", type: "string", in: "body", required: true, description: "Selects the handler and Kafka topic: noop, log-message, flaky, or slow" },
+              { name: "scheduledAt", type: "string (RFC3339)", in: "body", required: true, description: "When the job becomes due. A past time runs on the next tick. Required unless cron is set" },
+              { name: "payload", type: "object", in: "body", required: false, description: "Arbitrary JSON passed to the handler. log-message needs message; flaky takes failRate; slow takes sleepMs" },
+              { name: "priority", type: "integer", in: "body", required: false, description: "Higher runs first among due jobs. Defaults to 0" },
+              { name: "maxAttempts", type: "integer", in: "body", required: false, description: "Total tries before the job goes to the DLQ. Defaults to 3" },
+            ],
+            responseExample: `{
+  "id": "66f9a1c2e4b0a3d5c8f12a01",
+  "idempotencyKey": "test-job-1",
+  "tenantId": "tenant-a",
+  "jobType": "log-message",
+  "payload": { "message": "hello from the scheduler" },
+  "priority": 5,
+  "status": "pending",
+  "scheduledAt": "2026-09-29T18:00:00Z",
+  "attempts": 0,
+  "maxAttempts": 3,
+  "createdAt": "2026-09-29T18:00:00Z",
+  "updatedAt": "2026-09-29T18:00:00Z"
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/jobs \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "idempotencyKey": "test-job-1",
+    "tenantId": "tenant-a",
+    "jobType": "log-message",
+    "payload": { "message": "hello from the scheduler" },
+    "priority": 5,
+    "scheduledAt": "2026-09-29T18:00:00Z",
+    "maxAttempts": 3
+  }'`,
+              },
+              {
+                label: "JavaScript",
+                language: "javascript",
+                code: `const res = await fetch("http://localhost:8080/jobs", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    idempotencyKey: crypto.randomUUID(),
+    tenantId: "tenant-a",
+    jobType: "log-message",
+    payload: { message: "hello from the scheduler" },
+    scheduledAt: new Date().toISOString(),
+  }),
+})
+
+if (res.status === 409) console.log("already exists")
+const job = await res.json()`,
+              },
+            ],
+          },
+          {
+            id: "create-recurring-job",
+            method: "POST",
+            path: "/jobs",
+            summary: "Create a recurring (cron) job",
+            description:
+              "Pass cron instead of scheduledAt. The expression is validated on creation (400 if invalid) and the first scheduledAt is computed for you. The returned job is a template: it never runs itself. Each firing spawns a separate one-off job with idempotency key <idempotencyKey>-run-<timestamp>, then the template moves to its next occurrence. Standard 5-field cron only — no seconds field.",
+            params: [
+              { name: "idempotencyKey", type: "string", in: "body", required: true, description: "Identifies the template; spawned runs derive their keys from it" },
+              { name: "tenantId", type: "string", in: "body", required: true, description: "" },
+              { name: "jobType", type: "string", in: "body", required: true, description: "" },
+              { name: "cron", type: "string", in: "body", required: true, description: "5-field expression, e.g. \"0 2 * * *\" for 02:00 daily (UTC)" },
+              { name: "payload", type: "object", in: "body", required: false, description: "Copied to every spawned run" },
+              { name: "priority", type: "integer", in: "body", required: false, description: "Copied to every spawned run" },
+              { name: "maxAttempts", type: "integer", in: "body", required: false, description: "Applies to each spawned run. Defaults to 3" },
+            ],
+            responseExample: `{
+  "id": "66f9a1c2e4b0a3d5c8f12a02",
+  "idempotencyKey": "nightly-report",
+  "tenantId": "tenant-a",
+  "jobType": "log-message",
+  "payload": { "message": "nightly report run" },
+  "priority": 0,
+  "status": "pending",
+  "scheduledAt": "2026-09-30T02:00:00Z",
+  "cron": "0 2 * * *",
+  "attempts": 0,
+  "maxAttempts": 3,
+  "createdAt": "2026-09-29T18:00:00Z",
+  "updatedAt": "2026-09-29T18:00:00Z"
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl -X POST http://localhost:8080/jobs \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "idempotencyKey": "nightly-report",
+    "tenantId": "tenant-a",
+    "jobType": "log-message",
+    "payload": { "message": "nightly report run" },
+    "cron": "0 2 * * *",
+    "maxAttempts": 3
+  }'`,
+              },
+            ],
+          },
+          {
+            id: "get-job",
+            method: "GET",
+            path: "/jobs/{id}",
+            summary: "Get a job",
+            description:
+              "Returns the current state of one job. Use it to follow a job through pending → queued → claimed → running → completed (or back to pending with an incremented attempts on failure, or dlq once retries are exhausted). claimedBy and claimedAt appear once an executor picks it up; lastError appears after a failure. A malformed id returns 400; an unknown one returns 404.",
+            params: [
+              { name: "id", type: "string", in: "path", required: true, description: "Job id (24-character hex ObjectID) returned on creation" },
+            ],
+            responseExample: `{
+  "id": "66f9a1c2e4b0a3d5c8f12a01",
+  "idempotencyKey": "test-job-1",
+  "tenantId": "tenant-a",
+  "jobType": "log-message",
+  "payload": { "message": "hello from the scheduler" },
+  "priority": 5,
+  "status": "completed",
+  "scheduledAt": "2026-09-29T18:00:00Z",
+  "claimedBy": "worker-3k9x",
+  "claimedAt": "2026-09-29T18:00:00Z",
+  "attempts": 0,
+  "maxAttempts": 3,
+  "createdAt": "2026-09-29T18:00:00Z",
+  "updatedAt": "2026-09-29T18:00:01Z"
+}`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `curl http://localhost:8080/jobs/66f9a1c2e4b0a3d5c8f12a01`,
+              },
+              {
+                label: "JavaScript",
+                language: "javascript",
+                code: `// Poll until the job reaches a terminal state
+let job
+do {
+  await new Promise((r) => setTimeout(r, 500))
+  job = await fetch(\`http://localhost:8080/jobs/\${id}\`).then((r) => r.json())
+} while (!["completed", "dlq"].includes(job.status))`,
+              },
+            ],
+          },
+          {
+            id: "list-jobs",
+            method: "GET",
+            path: "/jobs",
+            summary: "List jobs for a tenant",
+            description:
+              "Returns a tenant's jobs newest first (by createdAt), as a bare JSON array. tenantId is required (400 without it). limit defaults to 100 and is capped at 5000; an invalid or non-positive limit silently falls back to the default. Recurring templates and their spawned runs both appear here.",
+            params: [
+              { name: "tenantId", type: "string", in: "query", required: true, description: "" },
+              { name: "status", type: "string", in: "query", required: false, description: "Filter: pending, queued, claimed, running, completed, or dlq" },
+              { name: "limit", type: "integer", in: "query", required: false, description: "Max results. Default 100, max 5000" },
+            ],
+            responseExample: `[
+  {
+    "id": "66f9a1c2e4b0a3d5c8f12a01",
+    "idempotencyKey": "test-job-1",
+    "tenantId": "tenant-a",
+    "jobType": "log-message",
+    "payload": { "message": "hello from the scheduler" },
+    "priority": 5,
+    "status": "completed",
+    "scheduledAt": "2026-09-29T18:00:00Z",
+    "attempts": 0,
+    "maxAttempts": 3,
+    "createdAt": "2026-09-29T18:00:00Z",
+    "updatedAt": "2026-09-29T18:00:01Z"
+  }
+]`,
+            codeSamples: [
+              {
+                label: "cURL",
+                language: "bash",
+                code: `# All jobs for a tenant
+curl "http://localhost:8080/jobs?tenantId=tenant-a"
+
+# Only dead-lettered jobs, capped at 50
+curl "http://localhost:8080/jobs?tenantId=tenant-a&status=dlq&limit=50"`,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────
   // Signal (existing)
   // ─────────────────────────────────────────────────────────────
   {
