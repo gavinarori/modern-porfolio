@@ -144,6 +144,27 @@ export const youtubeVideos: YoutubeVideo[] = [
 ]
 
 export const projects: Project[] = [
+  {
+    id: "penthouse-cabin-booking",
+    title: "Penthouse — Cabin Booking Website",
+    description:
+      "A premium cabin-booking website concept with a scroll-animated hero, a detailed cabin page with surroundings and views, and a built-in date-and-price calendar.",
+    category: "frontend",
+    image: "https://cabinhouse-demo.vercel.app/1.avif",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/6abfa4f015f0f5e3cd5f1a3f/download.mp4",
+    tags: ["Next.js", "TypeScript", "CSS", "Scroll Animation", "Booking Calendar"],
+    liveUrl: "https://cabinhouse-demo.vercel.app/",
+    caseStudy: {
+      problem:
+        "Most small-stay booking pages feel like spreadsheets. I wanted to see how calm and high-end a cabin site could feel while still letting guests check prices and pick dates without sending a single message.",
+      approach:
+        "Rebuilt a reference design in Next.js and TypeScript, then added a smooth scroll-linked hero where each image drifts at its own pace, a cabin page with a photo gallery, surroundings and views, and a date-and-price modal showing nightly prices, unavailable dates, minimum-night rules and a last-minute filter. The header became a slim floating bar with an elevator-door menu, and the footer was condensed into a compact dark panel.",
+      impact:
+        "A complete browse-to-dates flow in one concept: a guest can see the place, feel the surroundings, check prices and choose arrival and departure with the total shown immediately.",
+      learnings:
+        "The calendar currently runs on fixed sample prices. Next time I'd model availability and pricing as real data from the start, so the same component can plug straight into a booking backend.",
+    },
+  },
     {
     id: "bmw-m3-concept",
     title: "BMW M3 Modern Website Concept",
