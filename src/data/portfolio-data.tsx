@@ -325,6 +325,108 @@ export const projects: Project[] = [
   },
 
   {
+    id: "sitecraft",
+    title: "Sitecraft",
+    description:
+      "A web application for transforming businesses with cutting-edge web development.",
+    category: "fullstack",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696a3c2fbe90b354d88b3f/download.mp4",
+    tags: ["Next.js", "TypeScript", "Prisma", "Octokit", "REST API", "TailwindCSS", "Framer Motion"],
+    liveUrl: "https://ssitecraft.vercel.app/",
+  },
+  {
+    id: "sitecraft-components",
+    title: "Sitecraft Components",
+    description:
+      "A library of pre-built, trending UI components and elements you can drop into your websites without starting from scratch.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/676962a68f5e80dcc0b73f98/download.mp4",
+    tags: ["Next.js", "Node.js", "HTML", "CSS", "JavaScript", "Markdown"],
+    liveUrl: "https://ssitecraft-components.vercel.app/",
+    githubUrl: "https://github.com/gavinarori/ssitecraft-components",
+  },
+  {
+    id: "photography-website",
+    title: "Photography Website",
+    description:
+      "A photographer's portfolio site that captures authentic moments and tells stories through images, blending creativity and emotion in each shot.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696e682fbe90b354d8ba26/download.mp4",
+    tags: ["Framer"],
+    liveUrl: "https://arori.framer.website/",
+  },
+  {
+    id: "movie-hub",
+    title: "Movie Hub",
+    description:
+      "A movie web app showing recently released movies and series, their trailers, and details on their casts.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/6769a0c4a080a6ad160a1f5e/download.mp4",
+    tags: ["React", "SCSS", "TMDB API", "JavaScript", "Git"],
+    liveUrl: "https://enchanting-pothos-b10347.netlify.app/",
+    githubUrl: "https://github.com/gavinarori/movie-app",
+  },
+  {
+    id: "gallery-web",
+    title: "Gallery Web",
+    description:
+      "A photo gallery web app with a theme provider, robust search, click-to-share photos, and sign-in to upload your own pictures. A music feature is in progress.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696c868f5e80dcc0b7a20c/download.mp4",
+    tags: ["Next.js", "TypeScript", "TailwindCSS", "Unsplash API", "Axios"],
+    liveUrl: "https://gallery-web-five.vercel.app/",
+  },
+  {
+    id: "yodara",
+    title: "Yodara",
+    description: "A landing page for Yodara, designed in Figma and built with React.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696dbd2fbe90b354d8b240/download.mp4",
+    tags: ["React", "TypeScript", "TailwindCSS", "Figma"],
+    liveUrl: "https://yodora-jade.vercel.app/",
+  },
+  {
+    id: "food-catering",
+    title: "Food Catering",
+    description:
+      "A food catering service site for healthy food delivery in your town.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696fe58f5e80dcc0b7c498/download.mp4",
+    tags: ["Next.js", "React", "TailwindCSS", "JavaScript"],
+    liveUrl: "https://food-catering-kappa.vercel.app/",
+  },
+  {
+    id: "shopping-cart-bag",
+    title: "Shopping Cart Bag Application",
+    description:
+      "An interactive web app that lets customers track products in their wishlist and cart.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/6769710f2fbe90b354d8cf61/download.mp4",
+    tags: ["React", "Redux", "JavaScript", "CSS"],
+    liveUrl: "https://my-shopping-cart-bag-application.vercel.app/",
+  },
+  {
+    id: "modern-website",
+    title: "Modern Website",
+    description:
+      "A visually striking, interactive web experience built with Aceternity UI components.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696aa18f5e80dcc0b78d4e/download.mp4",
+    tags: ["Next.js", "TypeScript", "TailwindCSS", "Radix", "Aceternity UI"],
+    liveUrl: "https://porfolio-nine-pi.vercel.app/",
+    githubUrl: "https://github.com/gavinarori/porfolio",
+  },
+
+  {
     id: "websocket-architecture",
     title: "WebSocket Architecture for High-Scale Systems",
     description:
