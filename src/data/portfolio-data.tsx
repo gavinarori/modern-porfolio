@@ -144,6 +144,27 @@ export const youtubeVideos: YoutubeVideo[] = [
 ]
 
 export const projects: Project[] = [
+  {
+    id: "penthouse-cabin-booking",
+    title: "Penthouse — Cabin Booking Website",
+    description:
+      "A premium cabin-booking website concept with a scroll-animated hero, a detailed cabin page with surroundings and views, and a built-in date-and-price calendar.",
+    category: "frontend",
+    image: "https://cabinhouse-demo.vercel.app/1.avif",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/6abfa4f015f0f5e3cd5f1a3f/download.mp4",
+    tags: ["Next.js", "TypeScript", "CSS", "Scroll Animation", "Booking Calendar"],
+    liveUrl: "https://cabinhouse-demo.vercel.app/",
+    caseStudy: {
+      problem:
+        "Most small-stay booking pages feel like spreadsheets. I wanted to see how calm and high-end a cabin site could feel while still letting guests check prices and pick dates without sending a single message.",
+      approach:
+        "Rebuilt a reference design in Next.js and TypeScript, then added a smooth scroll-linked hero where each image drifts at its own pace, a cabin page with a photo gallery, surroundings and views, and a date-and-price modal showing nightly prices, unavailable dates, minimum-night rules and a last-minute filter. The header became a slim floating bar with an elevator-door menu, and the footer was condensed into a compact dark panel.",
+      impact:
+        "A complete browse-to-dates flow in one concept: a guest can see the place, feel the surroundings, check prices and choose arrival and departure with the total shown immediately.",
+      learnings:
+        "The calendar currently runs on fixed sample prices. Next time I'd model availability and pricing as real data from the start, so the same component can plug straight into a booking backend.",
+    },
+  },
     {
     id: "bmw-m3-concept",
     title: "BMW M3 Modern Website Concept",
@@ -301,6 +322,108 @@ export const projects: Project[] = [
       learnings:
         "Designing for someone in distress is a different discipline than designing for a casual user — every extra tap or ambiguous label is a real cost, not a UX nitpick.",
     },
+  },
+
+  {
+    id: "sitecraft",
+    title: "Sitecraft",
+    description:
+      "A web application for transforming businesses with cutting-edge web development.",
+    category: "fullstack",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696a3c2fbe90b354d88b3f/download.mp4",
+    tags: ["Next.js", "TypeScript", "Prisma", "Octokit", "REST API", "TailwindCSS", "Framer Motion"],
+    liveUrl: "https://ssitecraft.vercel.app/",
+  },
+  {
+    id: "sitecraft-components",
+    title: "Sitecraft Components",
+    description:
+      "A library of pre-built, trending UI components and elements you can drop into your websites without starting from scratch.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/676962a68f5e80dcc0b73f98/download.mp4",
+    tags: ["Next.js", "Node.js", "HTML", "CSS", "JavaScript", "Markdown"],
+    liveUrl: "https://ssitecraft-components.vercel.app/",
+    githubUrl: "https://github.com/gavinarori/ssitecraft-components",
+  },
+  {
+    id: "photography-website",
+    title: "Photography Website",
+    description:
+      "A photographer's portfolio site that captures authentic moments and tells stories through images, blending creativity and emotion in each shot.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696e682fbe90b354d8ba26/download.mp4",
+    tags: ["Framer"],
+    liveUrl: "https://arori.framer.website/",
+  },
+  {
+    id: "movie-hub",
+    title: "Movie Hub",
+    description:
+      "A movie web app showing recently released movies and series, their trailers, and details on their casts.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/6769a0c4a080a6ad160a1f5e/download.mp4",
+    tags: ["React", "SCSS", "TMDB API", "JavaScript", "Git"],
+    liveUrl: "https://enchanting-pothos-b10347.netlify.app/",
+    githubUrl: "https://github.com/gavinarori/movie-app",
+  },
+  {
+    id: "gallery-web",
+    title: "Gallery Web",
+    description:
+      "A photo gallery web app with a theme provider, robust search, click-to-share photos, and sign-in to upload your own pictures. A music feature is in progress.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696c868f5e80dcc0b7a20c/download.mp4",
+    tags: ["Next.js", "TypeScript", "TailwindCSS", "Unsplash API", "Axios"],
+    liveUrl: "https://gallery-web-five.vercel.app/",
+  },
+  {
+    id: "yodara",
+    title: "Yodara",
+    description: "A landing page for Yodara, designed in Figma and built with React.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696dbd2fbe90b354d8b240/download.mp4",
+    tags: ["React", "TypeScript", "TailwindCSS", "Figma"],
+    liveUrl: "https://yodora-jade.vercel.app/",
+  },
+  {
+    id: "food-catering",
+    title: "Food Catering",
+    description:
+      "A food catering service site for healthy food delivery in your town.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696fe58f5e80dcc0b7c498/download.mp4",
+    tags: ["Next.js", "React", "TailwindCSS", "JavaScript"],
+    liveUrl: "https://food-catering-kappa.vercel.app/",
+  },
+  {
+    id: "shopping-cart-bag",
+    title: "Shopping Cart Bag Application",
+    description:
+      "An interactive web app that lets customers track products in their wishlist and cart.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/6769710f2fbe90b354d8cf61/download.mp4",
+    tags: ["React", "Redux", "JavaScript", "CSS"],
+    liveUrl: "https://my-shopping-cart-bag-application.vercel.app/",
+  },
+  {
+    id: "modern-website",
+    title: "Modern Website",
+    description:
+      "A visually striking, interactive web experience built with Aceternity UI components.",
+    category: "frontend",
+    image: "",
+    video: "https://video.gumlet.io/67690fd82fbe90b354d66613/67696aa18f5e80dcc0b78d4e/download.mp4",
+    tags: ["Next.js", "TypeScript", "TailwindCSS", "Radix", "Aceternity UI"],
+    liveUrl: "https://porfolio-nine-pi.vercel.app/",
+    githubUrl: "https://github.com/gavinarori/porfolio",
   },
 
   {
